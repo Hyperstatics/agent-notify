@@ -29,6 +29,9 @@ func TestDefaultConfigUsesAgentScopedNotifyConfig(t *testing.T) {
 	if cfg.Agent.Grok.Enabled {
 		t.Fatal("Grok should be disabled by default")
 	}
+	if cfg.Agent.Kimi.Enabled {
+		t.Fatal("Kimi should be disabled by default")
+	}
 	if cfg.Notify.ClaudeCode.Channels.System.Enabled {
 		t.Fatal("Claude Code system notification should be disabled by default")
 	}

@@ -68,6 +68,9 @@ func wechatURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.Grok.Channels.Wechat.WebhookURL != "" {
 		return cfg.Notify.Grok.Channels.Wechat.WebhookURL
 	}
+	if cfg.Notify.Kimi.Channels.Wechat.WebhookURL != "" {
+		return cfg.Notify.Kimi.Channels.Wechat.WebhookURL
+	}
 	if cfg.Notify.OpenCode.Channels.Wechat.WebhookURL != "" {
 		return cfg.Notify.OpenCode.Channels.Wechat.WebhookURL
 	}

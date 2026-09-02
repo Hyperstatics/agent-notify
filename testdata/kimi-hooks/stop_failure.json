@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "StopFailure",
+  "session_id": "sess-kimi-6",
+  "cwd": "/Users/demo/project",
+  "error_type": "server_error",
+  "error_message": "API timeout"
+}

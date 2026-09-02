@@ -17,6 +17,7 @@ func applyChannelToAgents(cfg *config.Config, apply func(agentEnabled bool, noti
 	apply(cfg.Agent.Codex.Enabled, &cfg.Notify.Codex)
 	apply(cfg.Agent.ZCode.Enabled, &cfg.Notify.ZCode)
 	apply(cfg.Agent.Grok.Enabled, &cfg.Notify.Grok)
+	apply(cfg.Agent.Kimi.Enabled, &cfg.Notify.Kimi)
 	apply(cfg.Agent.Droid.Enabled, &cfg.Notify.Droid)
 	apply(cfg.Agent.OpenCode.Enabled, &cfg.Notify.OpenCode)
 }

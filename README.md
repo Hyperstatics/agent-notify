@@ -16,7 +16,7 @@
 
 ## Overview
 
-Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, OpenCode, ZCode, Grok, Droid, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
+Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, OpenCode, ZCode, Grok, Kimi, Droid, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
 
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
@@ -50,12 +50,12 @@ npx agent-notify
 
 ### Supported Events
 
-| Event | Claude Code | Codex | OpenCode | ZCode | Grok | Droid |
-|------|:---:|:---:|:---:|:---:|:----:|:---:|
-| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ |
-| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ |
-| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ |
-| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | — |
+| Event | Claude Code | Codex | OpenCode | ZCode | Grok | Kimi | Droid |
+|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
+| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ |
+| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ | ✅ |
+| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ |
+| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | ✅ | — |
 
 Notes:
 
@@ -64,6 +64,7 @@ Notes:
 - OpenCode uses a JS plugin instead of native hooks: the plugin is written to `~/.agent-notify/opencode-plugin.js` (binary path baked into JS), and its path is registered in `~/.config/opencode/opencode.json` (user) or `./opencode.json` (project) `plugin` array. The plugin subscribes to `session.created`→`session_start`, `permission.asked`→`permission_required`, `question.asked`→`input_required`, `session.status`(idle)→`input_required`, `session.idle`→`run_completed`, `session.error`→`run_failed`.
 - ZCode subscribes via `~/.zcode/cli/config.json`: `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop`, mapped to `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
 - Grok subscribes via `~/.grok/hooks/agent-notify.json`: `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
+- Kimi Code subscribes via `[[hooks]]` in `~/.kimi-code/config.toml` (or `$KIMI_CODE_HOME/config.toml`): `SessionStart`, `PermissionRequest`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. `PermissionRequest` maps to `permission_required`; `Notification` maps by `notification_type` (`permission_prompt` → `permission_required`, idle/input → `input_required`, `task.completed` → `run_completed`). `StopFailure` / `PostToolUseFailure` map to `run_failed`. Kimi Code currently has no project-level config. Hooks are a Beta feature of Kimi Code.
 - Droid subscribes via `~/.factory/hooks.json`: `SessionStart`, `Notification`, `Stop`, mapped to `session_start` / `permission_required`|`input_required` / `run_completed`. Droid has no failure event, so `run_failed` is not supported. `session_start` is only used for click-to-focus window capture, not as a notification event.
 - **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op.
 
@@ -102,6 +103,8 @@ On every subsequent run it checks the local binary version: it downloads if miss
 > **Note**: Codex integrates through the official hooks system in `~/.codex/hooks.json` and currently subscribes only to `PermissionRequest` and `Stop`. After first install, run `/hooks` inside Codex to complete the trust review.
 >
 > **Grok**: Writes `~/.grok/hooks/agent-notify.json`. Global hooks are always trusted; project hooks (`.grok/hooks/`) require `/hooks-trust` or `--trust`. After install, run `/hooks` (or `Ctrl+L`) inside Grok to confirm they loaded.
+>
+> **Kimi**: Appends `[[hooks]]` entries to `~/.kimi-code/config.toml`. After install, run `/hooks` inside Kimi to confirm they loaded. Kimi Code hooks are currently Beta.
 
 
 > You don't need to edit config files by hand — this section is for reference only.
@@ -115,6 +118,7 @@ Agent integration config locations:
 - OpenCode: `~/.config/opencode/opencode.json` (writes `plugin` array → `~/.agent-notify/opencode-plugin.js`, command `agent-notify handle-opencode-hook`; project scope uses `./opencode.json`)
 - ZCode: `~/.zcode/cli/config.json` (writes `hooks.events.<Event>` + `hooks.enabled` → command `agent-notify handle-zcode-hook`; restart ZCode for the config to take effect)
 - Grok: `~/.grok/hooks/agent-notify.json` (writes hooks → command `agent-notify handle-grok-hook`; project scope uses `.grok/hooks/agent-notify.json`)
+- Kimi: `~/.kimi-code/config.toml` (writes `[[hooks]]` → command `agent-notify handle-kimi-hook`; user scope only)
 - Droid: `~/.factory/hooks.json` (writes hooks → command `agent-notify handle-droid-hook`; project scope uses `.factory/hooks.json`)
 
 ### WeChat Work Bot Binding Tip

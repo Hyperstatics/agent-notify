@@ -3,14 +3,15 @@ package doctor
 import (
 	"encoding/json"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
 )
 
 // hookBinaryPath 从 agent 的配置文件里取出已注册 hook 命令指向的二进制路径。
-// 四个 agent 的配置都是 JSON,只是 hook 数组的嵌套深度不同,所以递归遍历
-// 找第一个含 marker 的 command 字符串即可,无需按 agent 分支。
+// JSON hooks（Claude/Codex/Grok/Droid/ZCode/OpenCode）递归遍历 command 字段；
+// TOML hooks（Kimi [[hooks]]）在 JSON 解析失败后按行提取 command = "..."。
 // 找不到返回空串。
 func hookBinaryPath(settingsPath, marker string) string {
 	data, err := os.ReadFile(settingsPath)
@@ -18,14 +19,37 @@ func hookBinaryPath(settingsPath, marker string) string {
 		return ""
 	}
 	var root any
-	if err := json.Unmarshal(data, &root); err != nil {
-		return ""
+	if err := json.Unmarshal(data, &root); err == nil {
+		if cmd := findCommandWithMarker(root, marker); cmd != "" {
+			return common.BinaryPathFromHookCommand(cmd, marker)
+		}
 	}
-	cmd := findCommandWithMarker(root, marker)
-	if cmd == "" {
-		return ""
+	return hookBinaryPathFromText(string(data), marker)
+}
+
+func hookBinaryPathFromText(text, marker string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if !strings.Contains(line, marker) {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		if key != "command" {
+			continue
+		}
+		raw := strings.TrimSpace(parts[1])
+		val, err := strconv.Unquote(raw)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(val, marker) {
+			return common.BinaryPathFromHookCommand(val, marker)
+		}
 	}
-	return common.BinaryPathFromHookCommand(cmd, marker)
+	return ""
 }
 
 func findCommandWithMarker(node any, marker string) string {

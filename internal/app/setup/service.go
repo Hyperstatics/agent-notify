@@ -40,6 +40,7 @@ type Service struct {
 	codexIntegration    agentintegrations.Integration
 	zcodeIntegration    agentintegrations.Integration
 	grokIntegration     agentintegrations.Integration
+	kimiIntegration     agentintegrations.Integration
 	droidIntegration    agentintegrations.Integration
 	opencodeIntegration agentintegrations.Integration
 	feishuPreparer      FeishuPreparer
@@ -67,6 +68,7 @@ func NewService(opts ...Option) *Service {
 		codexIntegration:    agentintegrations.NewCodexIntegration(),
 		zcodeIntegration:    agentintegrations.NewZcodeIntegration(),
 		grokIntegration:     agentintegrations.NewGrokIntegration(),
+		kimiIntegration:     agentintegrations.NewKimiIntegration(),
 		droidIntegration:    agentintegrations.NewDroidIntegration(),
 		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
 	}
@@ -99,6 +101,11 @@ func WithZcodeIntegration(i agentintegrations.Integration) Option {
 // WithGrokIntegration sets the Grok integration.
 func WithGrokIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.grokIntegration = i }
+}
+
+// WithKimiIntegration sets the Kimi integration.
+func WithKimiIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.kimiIntegration = i }
 }
 
 // WithDroidIntegration sets the Droid integration.
@@ -157,6 +164,15 @@ func zcodeEventOptionsFn() []PromptOption {
 // 映射为 session_start / input_required|permission_required / run_completed / run_failed。
 // session_start 仅用于 Linux 点击聚焦的窗口捕获，不作为通知事件，故不列为可选项。
 func grokEventOptionsFn() []PromptOption {
+	return []PromptOption{
+		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.input_required"), Value: "input_required"},
+		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
+		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
+	}
+}
+
+func kimiEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.input_required"), Value: "input_required"},
@@ -348,6 +364,19 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.Grok.Channels.Slack.WebhookURL = ""
 		cfg.Notify.Grok.Events = nil
 		cfg.Agent.Grok.Enabled = false
+	case "kimi":
+		cfg.Notify.Kimi.Channels.Feishu.Enabled = false
+		cfg.Notify.Kimi.Channels.System.Enabled = false
+		cfg.Notify.Kimi.Channels.Wechat.Enabled = false
+		cfg.Notify.Kimi.Channels.Wechat.WebhookURL = ""
+		cfg.Notify.Kimi.Channels.WechatWork.Enabled = false
+		cfg.Notify.Kimi.Channels.DingTalk.Enabled = false
+		cfg.Notify.Kimi.Channels.Bark.Enabled = false
+		cfg.Notify.Kimi.Channels.Ntfy.Enabled = false
+		cfg.Notify.Kimi.Channels.Slack.Enabled = false
+		cfg.Notify.Kimi.Channels.Slack.WebhookURL = ""
+		cfg.Notify.Kimi.Events = nil
+		cfg.Agent.Kimi.Enabled = false
 	case "droid":
 		cfg.Notify.Droid.Channels.Feishu.Enabled = false
 		cfg.Notify.Droid.Channels.System.Enabled = false
@@ -398,6 +427,8 @@ func agentName(agent string) string {
 		return "ZCode"
 	case "grok":
 		return "Grok"
+	case "kimi":
+		return "Kimi"
 	case "droid":
 		return "Droid"
 	case "opencode":

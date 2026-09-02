@@ -137,6 +137,7 @@ func TestService_NoAgentsDetected(t *testing.T) {
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
+		WithKimiIntegration(&mockIntegration{name: "Kimi", detectInstalled: false}),
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
 	)
 
@@ -161,6 +162,7 @@ func TestService_ClaudeIntegration(t *testing.T) {
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
+		WithKimiIntegration(&mockIntegration{name: "Kimi", detectInstalled: false}),
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
 		WithFeishuPreparer(&mockFeishuPreparer{}),
 	)
@@ -194,6 +196,7 @@ func TestService_CodexIntegration(t *testing.T) {
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
+		WithKimiIntegration(&mockIntegration{name: "Kimi", detectInstalled: false}),
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
 		WithFeishuPreparer(&mockFeishuPreparer{}),
 	)
@@ -225,6 +228,7 @@ func TestService_UsesInjectedConfigLoader(t *testing.T) {
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
+		WithKimiIntegration(&mockIntegration{name: "Kimi", detectInstalled: false}),
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
@@ -276,6 +280,7 @@ func TestService_RecordsInstalledPath(t *testing.T) {
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
+		WithKimiIntegration(&mockIntegration{name: "Kimi", detectInstalled: false}),
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
@@ -316,6 +321,7 @@ func TestService_DoesNotDuplicateInstalledPathOnReinstall(t *testing.T) {
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
+		WithKimiIntegration(&mockIntegration{name: "Kimi", detectInstalled: false}),
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)

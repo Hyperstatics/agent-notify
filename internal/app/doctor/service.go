@@ -29,6 +29,7 @@ type Service struct {
 	codexIntegration    agentintegrations.Integration
 	zcodeIntegration    agentintegrations.Integration
 	grokIntegration     agentintegrations.Integration
+	kimiIntegration     agentintegrations.Integration
 	droidIntegration    agentintegrations.Integration
 	opencodeIntegration agentintegrations.Integration
 }
@@ -40,6 +41,7 @@ func NewService(opts ...Option) *Service {
 		codexIntegration:    agentintegrations.NewCodexIntegration(),
 		zcodeIntegration:    agentintegrations.NewZcodeIntegration(),
 		grokIntegration:     agentintegrations.NewGrokIntegration(),
+		kimiIntegration:     agentintegrations.NewKimiIntegration(),
 		droidIntegration:    agentintegrations.NewDroidIntegration(),
 		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
 	}
@@ -72,6 +74,11 @@ func WithZcodeIntegration(i agentintegrations.Integration) Option {
 // WithGrokIntegration sets the Grok integration.
 func WithGrokIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.grokIntegration = i }
+}
+
+// WithKimiIntegration sets the Kimi integration.
+func WithKimiIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.kimiIntegration = i }
 }
 
 // WithDroidIntegration sets the Droid integration.
@@ -144,6 +151,16 @@ type DiagnosticsResult struct {
 	GrokBarkEnabled           bool
 	GrokNtfyEnabled           bool
 	GrokSlackEnabled          bool
+	KimiInstalled             bool
+	KimiHookInstalled         bool
+	KimiFeishuEnabled         bool
+	KimiSystemEnabled         bool
+	KimiWechatEnabled         bool
+	KimiWechatWorkEnabled     bool
+	KimiDingTalkEnabled       bool
+	KimiBarkEnabled           bool
+	KimiNtfyEnabled           bool
+	KimiSlackEnabled          bool
 	DroidInstalled            bool
 	DroidHookInstalled        bool
 	OpenCodeInstalled         bool
@@ -168,6 +185,7 @@ type DiagnosticsResult struct {
 	CodexIntegrationStatus    DiagnosticStatus
 	ZcodeIntegrationStatus    DiagnosticStatus
 	GrokIntegrationStatus     DiagnosticStatus
+	KimiIntegrationStatus     DiagnosticStatus
 	DroidIntegrationStatus    DiagnosticStatus
 	OpenCodeIntegrationStatus DiagnosticStatus
 
@@ -176,6 +194,7 @@ type DiagnosticsResult struct {
 	CodexSystemFocusPrecision    string
 	ZcodeSystemFocusPrecision    string
 	GrokSystemFocusPrecision     string
+	KimiSystemFocusPrecision     string
 	DroidSystemFocusPrecision    string
 	OpenCodeSystemFocusPrecision string
 
@@ -195,6 +214,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.CodexInstalled = s.codexIntegration.DetectInstalled()
 	result.ZcodeInstalled = s.zcodeIntegration != nil && s.zcodeIntegration.DetectInstalled()
 	result.GrokInstalled = s.grokIntegration != nil && s.grokIntegration.DetectInstalled()
+	result.KimiInstalled = s.kimiIntegration != nil && s.kimiIntegration.DetectInstalled()
 	result.DroidInstalled = s.droidIntegration != nil && s.droidIntegration.DetectInstalled()
 	result.OpenCodeInstalled = s.opencodeIntegration != nil && s.opencodeIntegration.DetectInstalled()
 
@@ -210,7 +230,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ConfigExists = cfgErr == nil
 
 	// hook 已注册但 command 指向的二进制不存在时,集成实际不可用(issue #34)
-	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, droidBinaryMissing, opencodeBinaryMissing bool
+	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, kimiBinaryMissing, droidBinaryMissing, opencodeBinaryMissing bool
 
 	// Claude hooks settings
 	claudeSettingsPath, _ := s.claudeIntegration.SettingsPath("user")
@@ -245,6 +265,16 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 			installed, err := s.grokIntegration.IsHookInstalled(grokSettingsPath)
 			result.GrokHookInstalled = err == nil && installed
 			grokBinaryMissing = result.GrokHookInstalled && hookBinaryMissing(grokSettingsPath, "handle-grok-hook")
+		}
+	}
+
+	// Kimi hooks settings
+	if s.kimiIntegration != nil {
+		kimiSettingsPath, _ := s.kimiIntegration.SettingsPath("user")
+		if kimiSettingsPath != "" {
+			installed, err := s.kimiIntegration.IsHookInstalled(kimiSettingsPath)
+			result.KimiHookInstalled = err == nil && installed
+			kimiBinaryMissing = result.KimiHookInstalled && hookBinaryMissing(kimiSettingsPath, "handle-kimi-hook")
 		}
 	}
 
@@ -301,6 +331,14 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.GrokBarkEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Bark.Enabled
 	result.GrokNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Ntfy.Enabled
 	result.GrokSlackEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Slack.Enabled
+	result.KimiFeishuEnabled = cfgLoadErr == nil && cfg.Notify.Kimi.Channels.Feishu.Enabled
+	result.KimiSystemEnabled = cfgLoadErr == nil && cfg.Notify.Kimi.Channels.System.Enabled
+	result.KimiWechatEnabled = cfgLoadErr == nil && cfg.Notify.Kimi.Channels.Wechat.Enabled
+	result.KimiWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.Kimi.Channels.WechatWork.Enabled
+	result.KimiDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.Kimi.Channels.DingTalk.Enabled
+	result.KimiBarkEnabled = cfgLoadErr == nil && cfg.Notify.Kimi.Channels.Bark.Enabled
+	result.KimiNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Kimi.Channels.Ntfy.Enabled
+	result.KimiSlackEnabled = cfgLoadErr == nil && cfg.Notify.Kimi.Channels.Slack.Enabled
 	result.DroidFeishuEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.Feishu.Enabled
 	result.DroidSystemEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.System.Enabled
 	result.DroidWechatEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.Wechat.Enabled
@@ -324,6 +362,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.CodexSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.ZcodeSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.GrokSystemFocusPrecision = config.FocusPrecisionFromEnv()
+	result.KimiSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.DroidSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.OpenCodeSystemFocusPrecision = config.FocusPrecisionFromEnv()
 
@@ -331,6 +370,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.CodexIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled, codexBinaryMissing)
 	result.ZcodeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ZcodeInstalled, result.ZcodeHookInstalled, zcodeBinaryMissing)
 	result.GrokIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.GrokInstalled, result.GrokHookInstalled, grokBinaryMissing)
+	result.KimiIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.KimiInstalled, result.KimiHookInstalled, kimiBinaryMissing)
 	result.DroidIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.DroidInstalled, result.DroidHookInstalled, droidBinaryMissing)
 	result.OpenCodeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.OpenCodeInstalled, result.OpenCodeHookInstalled, opencodeBinaryMissing)
 
@@ -427,6 +467,13 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	grokNotifyStatus := padRight(diagnosticStatusLabel(result.GrokIntegrationStatus), 14)
 	output.Writef(i18n.T("doctor.row_format")+"\n", "Grok", grokInstallStatus, grokNotifyStatus)
 
+	kimiInstallStatus := padRight(i18n.T("status.not_installed"), 8)
+	if result.KimiInstalled {
+		kimiInstallStatus = padRight(i18n.T("status.installed"), 8)
+	}
+	kimiNotifyStatus := padRight(diagnosticStatusLabel(result.KimiIntegrationStatus), 14)
+	output.Writef(i18n.T("doctor.row_format")+"\n", "Kimi", kimiInstallStatus, kimiNotifyStatus)
+
 	droidInstallStatus := padRight(i18n.T("status.not_installed"), 8)
 	if result.DroidInstalled {
 		droidInstallStatus = padRight(i18n.T("status.installed"), 8)
@@ -490,6 +537,16 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.GrokBarkEnabled),
 		boolIcon(result.GrokNtfyEnabled),
 		boolIcon(result.GrokSlackEnabled),
+	)
+	output.Writef(channelRow, "Kimi",
+		boolIcon(result.KimiFeishuEnabled),
+		boolIcon(result.KimiSystemEnabled),
+		boolIcon(result.KimiWechatEnabled),
+		boolIcon(result.KimiWechatWorkEnabled),
+		boolIcon(result.KimiDingTalkEnabled),
+		boolIcon(result.KimiBarkEnabled),
+		boolIcon(result.KimiNtfyEnabled),
+		boolIcon(result.KimiSlackEnabled),
 	)
 	output.Writef(channelRow, "Droid",
 		boolIcon(result.DroidFeishuEnabled),
@@ -576,7 +633,7 @@ func focusPrecisionI18nKey(status string) string {
 }
 
 // firstEnabledAgentSystemPrecision returns the effective system focus precision
-// of the first agent (Claude, Codex, ZCode, Grok, Droid, OpenCode) with Channels.System.Enabled,
+// of the first agent (Claude, Codex, ZCode, Grok, Kimi, Droid, OpenCode) with Channels.System.Enabled,
 // or "app" when no agent has system notifications enabled.
 func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 	precision := config.FocusPrecisionApp
@@ -589,6 +646,8 @@ func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 		precision = result.ZcodeSystemFocusPrecision
 	case result.GrokSystemEnabled:
 		precision = result.GrokSystemFocusPrecision
+	case result.KimiSystemEnabled:
+		precision = result.KimiSystemFocusPrecision
 	case result.DroidSystemEnabled:
 		precision = result.DroidSystemFocusPrecision
 	case result.OpenCodeSystemEnabled:

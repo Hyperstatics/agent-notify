@@ -1,0 +1,6 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "sess-kimi-5",
+  "cwd": "/Users/demo/project",
+  "stop_hook_active": false
+}

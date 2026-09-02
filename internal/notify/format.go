@@ -25,6 +25,8 @@ func appDisplayName(agent string) string {
 		return "ZCode"
 	case "grok":
 		return "Grok"
+	case "kimi":
+		return "Kimi"
 	case "droid":
 		return "Droid"
 	case "opencode":

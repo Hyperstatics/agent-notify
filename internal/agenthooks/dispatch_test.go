@@ -116,6 +116,24 @@ func TestBuildSendersUsesGrokConfigForGrokMessages(t *testing.T) {
 	}
 }
 
+func TestBuildSendersUsesKimiConfigForKimiMessages(t *testing.T) {
+	cfg := config.Default()
+	cfg.Notify.ClaudeCode.Channels.System.Enabled = true
+	cfg.Notify.ClaudeCode.Events = []string{"run_completed"}
+	cfg.Notify.Kimi.Channels.System.Enabled = true
+	cfg.Notify.Kimi.Channels.Feishu.Enabled = false
+	cfg.Notify.Kimi.Events = []string{"run_completed"}
+
+	senders := buildSenders(cfg, notify.Message{Agent: "kimi", Event: "run_completed"})
+
+	if len(senders) != 1 {
+		t.Fatalf("len(senders) = %d, want 1", len(senders))
+	}
+	if senders[0].Name() != "system" {
+		t.Fatalf("senders[0] = %q, want system", senders[0].Name())
+	}
+}
+
 func TestBuildSendersUsesDroidConfigForDroidMessages(t *testing.T) {
 	cfg := config.Default()
 	cfg.Notify.ClaudeCode.Channels.System.Enabled = true

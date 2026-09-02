@@ -16,6 +16,7 @@ const (
 	agentCodex      = "codex"
 	agentZcode      = "zcode"
 	agentGrok       = "grok"
+	agentKimi       = "kimi"
 	agentDroid      = "droid"
 	agentOpencode   = "opencode"
 	channelSystem   = "system"
@@ -77,7 +78,7 @@ type configuredAgent struct {
 func (s *Service) selectAgent(prompter Prompter, cfg config.Config) (string, error) {
 	agentOptions, defaultAgent := s.agentOptions(cfg)
 	if len(agentOptions) == 0 {
-		return "", errors.New("Claude Code, Codex, ZCode, Grok, Droid or OpenCode not detected; please install one first")
+		return "", errors.New("Claude Code, Codex, ZCode, Grok, Kimi, Droid or OpenCode not detected; please install one first")
 	}
 	if defaultAgent == "" {
 		defaultAgent = agentOptions[0].Value
@@ -110,6 +111,12 @@ func (s *Service) agentOptions(cfg config.Config) ([]PromptOption, string) {
 		options = append(options, PromptOption{Label: "Grok", Value: agentGrok})
 		if cfg.Agent.Grok.Enabled && defaultAgent == "" {
 			defaultAgent = agentGrok
+		}
+	}
+	if s.kimiIntegration != nil && s.kimiIntegration.DetectInstalled() {
+		options = append(options, PromptOption{Label: "Kimi", Value: agentKimi})
+		if cfg.Agent.Kimi.Enabled && defaultAgent == "" {
+			defaultAgent = agentKimi
 		}
 	}
 	if s.droidIntegration != nil && s.droidIntegration.DetectInstalled() {
@@ -190,6 +197,8 @@ func eventOptionsForAgent(agent string) []PromptOption {
 		return zcodeEventOptionsFn()
 	case agentGrok:
 		return grokEventOptionsFn()
+	case agentKimi:
+		return kimiEventOptionsFn()
 	case agentDroid:
 		return droidEventOptionsFn()
 	case agentOpencode:
@@ -207,6 +216,8 @@ func channelsForAgent(cfg config.Config, agent string) config.ChannelsConfig {
 		return cfg.Notify.ZCode.Channels
 	case agentGrok:
 		return cfg.Notify.Grok.Channels
+	case agentKimi:
+		return cfg.Notify.Kimi.Channels
 	case agentDroid:
 		return cfg.Notify.Droid.Channels
 	case agentOpencode:
@@ -224,6 +235,8 @@ func eventsForAgent(cfg config.Config, agent string) []string {
 		return cfg.Notify.ZCode.Events
 	case agentGrok:
 		return cfg.Notify.Grok.Events
+	case agentKimi:
+		return cfg.Notify.Kimi.Events
 	case agentDroid:
 		return cfg.Notify.Droid.Events
 	case agentOpencode:
@@ -243,6 +256,8 @@ func (s *Service) configureAgent(req configureAgentRequest) (configuredAgent, er
 		return s.configureZcode(req)
 	case agentGrok:
 		return s.configureGrok(req)
+	case agentKimi:
+		return s.configureKimi(req)
 	case agentDroid:
 		return s.configureDroid(req)
 	case agentOpencode:
@@ -376,6 +391,42 @@ func (s *Service) configureGrok(req configureAgentRequest) (configuredAgent, err
 	next.Agent.Grok.InstalledPaths = config.RecordInstalledPath(
 		next.Agent.Grok.InstalledPaths, settingsPath)
 	next.Agent.Grok.Enabled = true
+	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
+}
+
+// configureKimi 配置 Kimi Code 的通知渠道、事件，并把 [[hooks]] 写入
+// ~/.kimi-code/config.toml（或 $KIMI_CODE_HOME/config.toml）。Kimi 无项目级配置。
+func (s *Service) configureKimi(req configureAgentRequest) (configuredAgent, error) {
+	next := req.cfg
+	next.Notify.Kimi.Channels = applyChannelSelection(next.Notify.Kimi.Channels, req.channels)
+	next.Notify.Kimi.Events = dedupeStrings(req.events)
+	if err := s.prepareSelectedChannels(req.ctx, req.channels); err != nil {
+		return configuredAgent{}, err
+	}
+	channels, err := promptWebhookURLs(req.prompter, next.Notify.Kimi.Channels, req.channels)
+	if err != nil {
+		return configuredAgent{}, err
+	}
+	next.Notify.Kimi.Channels = channels
+
+	agentScope := normalizedInstallScope(next.Agent.Kimi.InstallScope)
+	if agentScope != installScopeUsr {
+		agentScope = installScopeUsr
+	}
+	settingsPath, err := s.kimiIntegration.SettingsPath(agentScope)
+	if err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.kimi_hooks_err"), err)
+	}
+	resolvedBinary := common.ResolveBinaryPath(req.binaryPath)
+	if err := s.kimiIntegration.Install(settingsPath, resolvedBinary); err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.kimi_install_err"), err)
+	}
+	req.output.Writef(i18n.T("setup.kimi_hooks_done"), settingsPath)
+	req.output.Writef(i18n.T("setup.kimi_tip"))
+	next.Agent.Kimi.InstallScope = agentScope
+	next.Agent.Kimi.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.Kimi.InstalledPaths, settingsPath)
+	next.Agent.Kimi.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
 

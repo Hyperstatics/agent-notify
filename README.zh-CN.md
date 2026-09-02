@@ -16,7 +16,7 @@
 
 ## 项目简介
 
-一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、OpenCode、ZCode (Z.ai)、Grok、Droid 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
+一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、OpenCode、ZCode (Z.ai)、Grok、Kimi、Droid 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
 
 <p align="center">
   <img src="assist/demo.gif" alt="Agent Notify 演示" width="800">
@@ -45,12 +45,12 @@ npx agent-notify
 
 ### 支持的事件
 
-| 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Droid |
-|------|:---:|:---:|:---:|:---:|:----:|:---:|
-| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ |
-| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ |
-| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ |
-| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | — |
+| 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Kimi | Droid |
+|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
+| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ |
+| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ | ✅ |
+| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ |
+| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | ✅ | — |
 
 说明：
 
@@ -59,6 +59,7 @@ npx agent-notify
 - OpenCode 使用 JS 插件而非原生 hooks：插件写入 `~/.agent-notify/opencode-plugin.js`（二进制路径烘焙进 JS），路径注册到 `~/.config/opencode/opencode.json`（user）或 `./opencode.json`（project）的 `plugin` 数组。插件订阅 `session.created`→`session_start`、`permission.asked`→`permission_required`、`session.status`(idle)→`input_required`、`session.idle`→`run_completed`、`session.error`→`run_failed`。
 - ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure`、`Stop`，映射到 `permission_required`、`run_failed`、`run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
 - Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件，带 permission/approval 语义的 `Notification` 会映射为 `permission_required`（表中 *）；其它通知映射为 `input_required`。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
+- Kimi Code 通过 `~/.kimi-code/config.toml`（或 `$KIMI_CODE_HOME/config.toml`）的 `[[hooks]]` 订阅 `SessionStart`、`PermissionRequest`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。`PermissionRequest` 映射为 `permission_required`；`Notification` 按 `notification_type` 映射（`permission_prompt` → `permission_required`，idle/input → `input_required`，`task.completed` → `run_completed`）。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。Kimi Code 目前没有项目级配置。Hooks 仍是 Kimi Code 的 Beta 功能。
 - Droid 通过 `~/.factory/hooks.json` 订阅 `SessionStart`、`Notification`、`Stop`，映射为 `session_start` / `permission_required`|`input_required` / `run_completed`。Droid 无失败事件，故不支持 `run_failed`。`session_start` 仅用于点击聚焦的窗口捕获，不作为通知事件。
 - **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。
 
@@ -98,6 +99,8 @@ npx agent-notify
 > **注意**: Codex 通过 `~/.codex/hooks.json` 接入官方 hooks 系统，目前仅订阅 `PermissionRequest`、`Stop` 两个事件。首次安装后请在 codex 内运行 `/hooks` 完成 trust 审核。
 >
 > **Grok**: 写入 `~/.grok/hooks/agent-notify.json`。全局 hooks 始终可信；项目级 hooks（`.grok/hooks/`）需在仓库内运行 `/hooks-trust` 或使用 `--trust`。安装后可在 Grok 中运行 `/hooks`（或 `Ctrl+L`）确认已加载。
+>
+> **Kimi**: 向 `~/.kimi-code/config.toml` 追加 `[[hooks]]`。安装后请在 Kimi 中运行 `/hooks` 确认已加载。Kimi Code 的 Hooks 目前为 Beta。
 
 
 ## 配置说明
@@ -113,6 +116,7 @@ Agent 集成配置位置：
 - OpenCode: `~/.config/opencode/opencode.json`（写入 `plugin` 数组 → `~/.agent-notify/opencode-plugin.js`，命令 `agent-notify handle-opencode-hook`；项目 scope 为 `./opencode.json`）
 - ZCode: `~/.zcode/cli/config.json`（写入 `hooks.events.<Event>` + `hooks.enabled` → 命令 `agent-notify handle-zcode-hook`；重启 ZCode 使配置生效）
 - Grok: `~/.grok/hooks/agent-notify.json`（写入 hooks → 命令 `agent-notify handle-grok-hook`；项目 scope 为 `.grok/hooks/agent-notify.json`）
+- Kimi: `~/.kimi-code/config.toml`（写入 `[[hooks]]` → 命令 `agent-notify handle-kimi-hook`；仅 user scope）
 - Droid: `~/.factory/hooks.json`（写入 hooks → 命令 `agent-notify handle-droid-hook`；项目 scope 为 `.factory/hooks.json`）
 
 ### 企业微信机器人绑定小技巧

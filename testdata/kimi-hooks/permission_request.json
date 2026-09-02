@@ -1,0 +1,6 @@
+{
+  "hook_event_name": "PermissionRequest",
+  "session_id": "sess-kimi-1",
+  "cwd": "/Users/demo/project",
+  "tool_name": "Bash"
+}

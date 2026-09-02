@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "Notification",
+  "session_id": "sess-kimi-3",
+  "cwd": "/Users/demo/project",
+  "notification_type": "idle_prompt",
+  "title": "等待输入",
+  "body": "waiting for your input"
+}

@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "PostToolUseFailure",
+  "session_id": "sess-kimi-7",
+  "cwd": "/Users/demo/project",
+  "tool_name": "Bash",
+  "error": "exit status 1"
+}

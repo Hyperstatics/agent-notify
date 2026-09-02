@@ -53,6 +53,19 @@ func TestHookBinaryPathExtractsQuotedAndLegacyForms(t *testing.T) {
 	}
 }
 
+func TestHookBinaryPathFromKimiTOML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	body := "default_model = \"k3\"\n\n[[hooks]]\nevent = \"Stop\"\ncommand = \"\\\"/opt/bin/agent-notify\\\" handle-kimi-hook\"\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := hookBinaryPath(path, "handle-kimi-hook")
+	if got != "/opt/bin/agent-notify" {
+		t.Fatalf("hookBinaryPath() = %q, want /opt/bin/agent-notify", got)
+	}
+}
+
 // issue #34:hook 指向已删除的二进制时 doctor 必须报「程序缺失」,
 // 而不是显示集成正常。
 func TestHookBinaryMissing(t *testing.T) {

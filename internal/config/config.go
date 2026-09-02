@@ -25,6 +25,7 @@ type AgentConfig struct {
 	Codex      AgentTargetConfig `yaml:"codex"`       // Codex 配置
 	ZCode      AgentTargetConfig `yaml:"zcode"`       // ZCode 配置
 	Grok       AgentTargetConfig `yaml:"grok"`        // Grok 配置
+	Kimi       AgentTargetConfig `yaml:"kimi"`        // Kimi Code 配置
 	Droid      AgentTargetConfig `yaml:"droid"`       // Droid 配置
 	OpenCode   AgentTargetConfig `yaml:"opencode"`    // OpenCode 配置
 }
@@ -58,6 +59,7 @@ type NotifyConfig struct {
 	Codex      AgentNotifyConfig `yaml:"codex"`       // Codex 通知配置
 	ZCode      AgentNotifyConfig `yaml:"zcode"`       // ZCode 通知配置
 	Grok       AgentNotifyConfig `yaml:"grok"`        // Grok 通知配置
+	Kimi       AgentNotifyConfig `yaml:"kimi"`        // Kimi Code 通知配置
 	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
 	OpenCode   AgentNotifyConfig `yaml:"opencode"`    // OpenCode 通知配置
 }
@@ -69,7 +71,7 @@ type NotifyConfig struct {
 // enabledRemoteFreezeChannels 仍只遍历前四个，导致只配 Droid 的用户完全冻结不了。
 // TestNotifyConfigAllCoversEveryAgent 会在字段数与此处不一致时失败。
 func (n NotifyConfig) All() []AgentNotifyConfig {
-	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid, n.OpenCode}
+	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Kimi, n.Droid, n.OpenCode}
 }
 
 // AgentNotifyConfig holds notification configuration for a single agent.
@@ -187,6 +189,9 @@ func Default() Config {
 	// 无 PermissionRequest；授权等待通过 Notification 映射为 permission_required。
 	// session_start 同样只用于聚焦捕获，不作为通知事件。
 	grokEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
+	// Kimi Code hooks 支持 SessionStart / PermissionRequest / Notification /
+	// Stop / StopFailure / PostToolUseFailure。session_start 仅用于聚焦捕获。
+	kimiEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 	// Droid hooks 支持 SessionStart / Notification / Stop。
 	// Notification 通过 notification_type 区分 permission_prompt / idle_prompt。
 	// Droid 无失败事件，故不支持 run_failed。session_start 仅用于聚焦捕获。
@@ -239,6 +244,10 @@ func Default() Config {
 				Enabled:      false,
 				InstallScope: "user",
 			},
+			Kimi: AgentTargetConfig{
+				Enabled:      false,
+				InstallScope: "user",
+			},
 			Droid: AgentTargetConfig{
 				Enabled:      false,
 				InstallScope: "user",
@@ -263,6 +272,10 @@ func Default() Config {
 			},
 			Grok: AgentNotifyConfig{
 				Events:   append([]string(nil), grokEvents...),
+				Channels: disabledChannels(),
+			},
+			Kimi: AgentNotifyConfig{
+				Events:   append([]string(nil), kimiEvents...),
 				Channels: disabledChannels(),
 			},
 			Droid: AgentNotifyConfig{
@@ -345,6 +358,7 @@ func Load(path string) (Config, error) {
 	cfg.Notify.Codex.Events = ensureEvents(cfg.Notify.Codex, def.Notify.Codex.Events)
 	cfg.Notify.ZCode.Events = ensureEvents(cfg.Notify.ZCode, def.Notify.ZCode.Events)
 	cfg.Notify.Grok.Events = ensureEvents(cfg.Notify.Grok, def.Notify.Grok.Events)
+	cfg.Notify.Kimi.Events = ensureEvents(cfg.Notify.Kimi, def.Notify.Kimi.Events)
 	cfg.Notify.Droid.Events = ensureEvents(cfg.Notify.Droid, def.Notify.Droid.Events)
 	cfg.Notify.OpenCode.Events = ensureEvents(cfg.Notify.OpenCode, def.Notify.OpenCode.Events)
 
@@ -366,6 +380,7 @@ func migrateV1ToV2(cfg *Config) {
 		&cfg.Notify.Codex.Channels.System,
 		&cfg.Notify.ZCode.Channels.System,
 		&cfg.Notify.Grok.Channels.System,
+		&cfg.Notify.Kimi.Channels.System,
 		&cfg.Notify.Droid.Channels.System,
 		&cfg.Notify.OpenCode.Channels.System,
 	} {

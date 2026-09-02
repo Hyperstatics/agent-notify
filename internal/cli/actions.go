@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hellolib/agent-notify/internal/agentintegrations"
 	"github.com/hellolib/agent-notify/internal/app/doctor"
@@ -18,6 +19,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/droidhooks"
 	"github.com/hellolib/agent-notify/internal/grokhooks"
 	"github.com/hellolib/agent-notify/internal/i18n"
+	"github.com/hellolib/agent-notify/internal/kimihooks"
 	"github.com/hellolib/agent-notify/internal/opencodehooks"
 	"github.com/hellolib/agent-notify/internal/zcodehooks"
 	"github.com/mattn/go-isatty"
@@ -76,6 +78,7 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 		setup.WithCodexIntegration(agentintegrations.NewCodexIntegration()),
 		setup.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
 		setup.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
+		setup.WithKimiIntegration(agentintegrations.NewKimiIntegration()),
 		setup.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
 		setup.WithOpenCodeIntegration(agentintegrations.NewOpenCodeIntegration()),
 		setup.WithFeishuPreparer(&feishuPreparerAdapter{}),
@@ -154,6 +157,19 @@ func runInstallGrokHooks(scope, binaryPath string) error {
 		return err
 	}
 	return grokhooks.Install(path, common.ResolveBinaryPath(binaryPath))
+}
+
+func runPrintKimiHooks(streams Streams, binaryPath string) error {
+	_, err := fmt.Fprint(streams.Stdout, kimihooks.BuildHookSettings(common.ResolveBinaryPath(binaryPath)))
+	return err
+}
+
+func runInstallKimiHooks(scope, binaryPath string) error {
+	path, err := settingsPathForAgent("kimi", scope)
+	if err != nil {
+		return err
+	}
+	return kimihooks.Install(path, common.ResolveBinaryPath(binaryPath))
 }
 
 func runPrintDroidHooks(streams Streams, binaryPath string) error {
@@ -240,6 +256,9 @@ func runTestWechatWork(ctx context.Context, streams Streams) error {
 		webhookURL = cfg.Notify.Grok.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
+		webhookURL = cfg.Notify.Kimi.Channels.WechatWork.WebhookURL
+	}
+	if webhookURL == "" {
 		webhookURL = cfg.Notify.Droid.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
@@ -271,6 +290,9 @@ func runInitWechatWork(streams Streams, prompter Prompter) error {
 	}
 	if currentURL == "" {
 		currentURL = cfg.Notify.Grok.Channels.WechatWork.WebhookURL
+	}
+	if currentURL == "" {
+		currentURL = cfg.Notify.Kimi.Channels.WechatWork.WebhookURL
 	}
 	if currentURL == "" {
 		currentURL = cfg.Notify.Droid.Channels.WechatWork.WebhookURL
@@ -381,6 +403,15 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.Grok.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.Grok.Channels.Ntfy.Enabled),
 		statusIcon(cfg.Notify.Grok.Channels.Slack.Enabled))
+	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Kimi",
+		statusIcon(cfg.Notify.Kimi.Channels.Feishu.Enabled),
+		statusIcon(cfg.Notify.Kimi.Channels.System.Enabled),
+		statusIcon(cfg.Notify.Kimi.Channels.Wechat.Enabled),
+		statusIcon(cfg.Notify.Kimi.Channels.WechatWork.Enabled),
+		statusIcon(cfg.Notify.Kimi.Channels.DingTalk.Enabled),
+		statusIcon(cfg.Notify.Kimi.Channels.Bark.Enabled),
+		statusIcon(cfg.Notify.Kimi.Channels.Ntfy.Enabled),
+		statusIcon(cfg.Notify.Kimi.Channels.Slack.Enabled))
 	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Droid",
 		statusIcon(cfg.Notify.Droid.Channels.Feishu.Enabled),
 		statusIcon(cfg.Notify.Droid.Channels.System.Enabled),
@@ -447,6 +478,19 @@ func settingsPathForAgent(agent, scope string) (string, error) {
 			return filepath.Join(home, ".grok", "hooks", "agent-notify.json"), nil
 		case "project":
 			return filepath.Join(".grok", "hooks", "agent-notify.json"), nil
+		default:
+			return "", fmt.Errorf("unsupported scope: %s", scope)
+		}
+	case "kimi":
+		switch scope {
+		case "user":
+			kimiHome := os.Getenv("KIMI_CODE_HOME")
+			if strings.TrimSpace(kimiHome) == "" {
+				kimiHome = filepath.Join(home, ".kimi-code")
+			}
+			return filepath.Join(kimiHome, "config.toml"), nil
+		case "project":
+			return filepath.Join(".kimi-code", "config.toml"), nil
 		default:
 			return "", fmt.Errorf("unsupported scope: %s", scope)
 		}

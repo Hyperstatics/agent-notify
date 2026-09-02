@@ -95,6 +95,7 @@ func TestService_Run(t *testing.T) {
 		}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithKimiIntegration(&mockIntegration{name: "Kimi", detectInstalled: false}),
 	)
 
 	result, err := svc.Run()
@@ -139,6 +140,7 @@ func TestService_Run_ConfigPresenceAffectsIntegrationStatus(t *testing.T) {
 		}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithKimiIntegration(&mockIntegration{name: "Kimi", detectInstalled: false}),
 	)
 
 	result, err := svc.Run()

@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "Notification",
+  "session_id": "sess-kimi-2",
+  "cwd": "/Users/demo/project",
+  "notification_type": "permission_prompt",
+  "title": "需要授权",
+  "body": "Permission required to run shell command"
+}

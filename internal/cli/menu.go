@@ -24,7 +24,7 @@ const banner = `
 ║           ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║            ║
 ║           ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝            ║
 ║                        Agent Notify                            ║
-║  Claude / Codex / ZCode / Grok / Droid / OpenCode Notify Tool  ║
+║ Claude / Codex / Grok / Kimi / Droid / OpenCode Notify Tool    ║
 ╚════════════════════════════════════════════════════════════════╝
 `
 
@@ -252,7 +252,7 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 		return fmt.Errorf("%s: %w", i18n.T("clean.delete_failed"), err)
 	}
 
-	// 清理 Claude / Codex / ZCode / Grok 中由本插件写入的 hook（保留用户挂载的其他 hook）
+	// 清理各 agent 中由本插件写入的 hook（保留用户挂载的其他 hook）
 	for _, target := range targets {
 		for _, settingsPath := range target.paths {
 			if err := target.integration.Uninstall(settingsPath); err != nil {
@@ -329,6 +329,22 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.Grok.Channels.Slack.Enabled = false
 	defaultCfg.Notify.Grok.Channels.Slack.WebhookURL = ""
 	defaultCfg.Notify.Grok.Events = nil
+	// Clear Kimi channel toggles
+	defaultCfg.Notify.Kimi.Channels.Feishu.Enabled = false
+	defaultCfg.Notify.Kimi.Channels.System.Enabled = false
+	defaultCfg.Notify.Kimi.Channels.Wechat.Enabled = false
+	defaultCfg.Notify.Kimi.Channels.Wechat.WebhookURL = ""
+	defaultCfg.Notify.Kimi.Channels.WechatWork.Enabled = false
+	defaultCfg.Notify.Kimi.Channels.WechatWork.WebhookURL = ""
+	defaultCfg.Notify.Kimi.Channels.DingTalk.Enabled = false
+	defaultCfg.Notify.Kimi.Channels.DingTalk.WebhookURL = ""
+	defaultCfg.Notify.Kimi.Channels.Bark.Enabled = false
+	defaultCfg.Notify.Kimi.Channels.Bark.WebhookURL = ""
+	defaultCfg.Notify.Kimi.Channels.Ntfy.Enabled = false
+	defaultCfg.Notify.Kimi.Channels.Ntfy.TopicURL = ""
+	defaultCfg.Notify.Kimi.Channels.Slack.Enabled = false
+	defaultCfg.Notify.Kimi.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.Kimi.Events = nil
 	// Clear Droid channel toggles
 	defaultCfg.Notify.Droid.Channels.Feishu.Enabled = false
 	defaultCfg.Notify.Droid.Channels.System.Enabled = false

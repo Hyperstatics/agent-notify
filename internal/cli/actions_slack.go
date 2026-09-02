@@ -68,6 +68,9 @@ func slackURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.Grok.Channels.Slack.WebhookURL != "" {
 		return cfg.Notify.Grok.Channels.Slack.WebhookURL
 	}
+	if cfg.Notify.Kimi.Channels.Slack.WebhookURL != "" {
+		return cfg.Notify.Kimi.Channels.Slack.WebhookURL
+	}
 	if cfg.Notify.OpenCode.Channels.Slack.WebhookURL != "" {
 		return cfg.Notify.OpenCode.Channels.Slack.WebhookURL
 	}
