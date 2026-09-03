@@ -22,6 +22,14 @@ type payload struct {
 	ToolName             string          `json:"tool_name"`
 	StopHookActive       json.RawMessage `json:"stop_hook_active"` // 容错:接受 bool 或 "true"/"false"
 	LastAssistantMessage string          `json:"last_assistant_message"`
+	ApprovalsReviewer    string          `json:"approvals_reviewer"`
+	ApprovalRoute        string          `json:"approval_route"`
+	RequiresUserInput    *bool           `json:"requires_user_input"`
+	ApprovalContext      approvalContext `json:"approval_context"`
+}
+
+type approvalContext struct {
+	ApprovalsReviewer string `json:"approvals_reviewer"`
 }
 
 func ParseMessage(stdin io.Reader) (notify.Message, error) {
@@ -42,6 +50,9 @@ func ParseMessage(stdin io.Reader) (notify.Message, error) {
 			Body:      notify.DefaultBody("session_start"),
 		}, nil
 	case "PermissionRequest":
+		if skip, reason := shouldSkipPermissionNotify(p); skip {
+			return notify.Message{}, fmt.Errorf("%s", reason)
+		}
 		return notify.Message{
 			Agent:     "codex",
 			Event:     "permission_required",

@@ -37,6 +37,10 @@ func TestParseSessionStart(t *testing.T) {
 }
 
 func TestParsePermissionRequest(t *testing.T) {
+	orig := readCodexApprovalsReviewer
+	readCodexApprovalsReviewer = func() string { return "user" }
+	t.Cleanup(func() { readCodexApprovalsReviewer = orig })
+
 	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "codex-hooks", "permission_request.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -91,6 +95,42 @@ func TestParseStopFallsBackToDefaultBody(t *testing.T) {
 	}
 	if msg.Body == "" {
 		t.Fatal("Body should fall back to default when last_assistant_message empty")
+	}
+}
+
+func TestParsePermissionRequestSkipsAutoReviewFromPayload(t *testing.T) {
+	orig := readCodexApprovalsReviewer
+	readCodexApprovalsReviewer = func() string { return "user" }
+	t.Cleanup(func() { readCodexApprovalsReviewer = orig })
+
+	raw := []byte(`{"hook_event_name":"PermissionRequest","session_id":"s","cwd":"/tmp","tool_name":"Bash","approvals_reviewer":"auto_review"}`)
+	_, err := parseMessageBytes(raw)
+	if err == nil {
+		t.Fatal("auto_review payload should skip permission notify")
+	}
+}
+
+func TestParsePermissionRequestSkipsAutoReviewFromConfig(t *testing.T) {
+	orig := readCodexApprovalsReviewer
+	readCodexApprovalsReviewer = func() string { return "auto_review" }
+	t.Cleanup(func() { readCodexApprovalsReviewer = orig })
+
+	raw := []byte(`{"hook_event_name":"PermissionRequest","session_id":"s","cwd":"/tmp","tool_name":"Bash"}`)
+	_, err := parseMessageBytes(raw)
+	if err == nil {
+		t.Fatal("config auto_review should skip permission notify")
+	}
+}
+
+func TestParsePermissionRequestSkipsRequiresUserInputFalse(t *testing.T) {
+	orig := readCodexApprovalsReviewer
+	readCodexApprovalsReviewer = func() string { return "user" }
+	t.Cleanup(func() { readCodexApprovalsReviewer = orig })
+
+	raw := []byte(`{"hook_event_name":"PermissionRequest","session_id":"s","cwd":"/tmp","tool_name":"Bash","requires_user_input":false}`)
+	_, err := parseMessageBytes(raw)
+	if err == nil {
+		t.Fatal("requires_user_input=false should skip permission notify")
 	}
 }
 
