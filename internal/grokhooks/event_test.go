@@ -89,6 +89,35 @@ func TestParseStop(t *testing.T) {
 	}
 }
 
+func TestParseStopEndTurn(t *testing.T) {
+	raw := []byte(`{"hookEventName":"stop","sessionId":"s","cwd":"/tmp","reason":"end_turn"}`)
+	msg, err := parseMessageBytes(raw)
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if msg.Event != "run_completed" {
+		t.Fatalf("Event = %q, want run_completed", msg.Event)
+	}
+}
+
+func TestParseStopSkipsSessionEnd(t *testing.T) {
+	for _, reason := range []string{"channel_closed", "shutdown"} {
+		raw := []byte(`{"hookEventName":"stop","sessionId":"s","cwd":"/tmp","reason":"` + reason + `"}`)
+		_, err := parseMessageBytes(raw)
+		if err == nil {
+			t.Fatalf("session-end Stop reason=%s should be skipped", reason)
+		}
+	}
+}
+
+func TestParseStopCancelledIsSkipped(t *testing.T) {
+	raw := []byte(`{"hookEventName":"StopCancelled","sessionId":"s","cwd":"/tmp","reason":"user_interrupt"}`)
+	_, err := parseMessageBytes(raw)
+	if err == nil {
+		t.Fatal("StopCancelled / Ctrl+C should not notify")
+	}
+}
+
 func TestParseStopFailure(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "grok-hooks", "stop_failure.json"))
 	if err != nil {
@@ -164,8 +193,7 @@ func TestParseUnsupportedEvent(t *testing.T) {
 	}
 }
 
-func TestParseNotificationPrefersTypeOverBroadMessageKeywords(t *testing.T) {
-	// Message casually mentions "permission" but type is idle — must stay input_required.
+func TestParseNotificationIdlePromptIsSkipped(t *testing.T) {
 	raw := []byte(`{
 		"hookEventName":"notification",
 		"sessionId":"s",
@@ -173,12 +201,9 @@ func TestParseNotificationPrefersTypeOverBroadMessageKeywords(t *testing.T) {
 		"message":"Discussed file permission settings earlier",
 		"notificationType":"idle_prompt"
 	}`)
-	msg, err := parseMessageBytes(raw)
-	if err != nil {
-		t.Fatalf("ParseMessage() error = %v", err)
-	}
-	if msg.Event != "input_required" {
-		t.Fatalf("Event = %q, want input_required (type should win over bare word 'permission')", msg.Event)
+	_, err := parseMessageBytes(raw)
+	if err == nil {
+		t.Fatal("idle_prompt is a post-turn idle chime and should be skipped")
 	}
 }
 
@@ -211,12 +236,9 @@ func TestParseNotificationBarePermissionWordIsNotPermissionRequired(t *testing.T
 		"cwd":"/tmp",
 		"message":"Check the permission model docs"
 	}`)
-	msg, err := parseMessageBytes(raw)
-	if err != nil {
-		t.Fatalf("ParseMessage() error = %v", err)
-	}
-	if msg.Event != "input_required" {
-		t.Fatalf("Event = %q, want input_required for non-phrase permission mention", msg.Event)
+	_, err := parseMessageBytes(raw)
+	if err == nil {
+		t.Fatal("bare permission mention without a wait type should be skipped")
 	}
 }
 
@@ -291,10 +313,13 @@ func TestPermissionNotificationTypeAllowlist(t *testing.T) {
 }
 
 func TestInputRequiredNotificationTypeAllowlist(t *testing.T) {
-	for _, tname := range []string{"idle_prompt", "input_required", "waiting_input", "needs_input"} {
+	for _, tname := range []string{"input_required", "waiting_input", "needs_input"} {
 		if !isInputRequiredNotificationType(tname) {
 			t.Fatalf("isInputRequiredNotificationType(%q) = false, want true", tname)
 		}
+	}
+	if isInputRequiredNotificationType("idle_prompt") {
+		t.Fatal("idle_prompt must not map to input_required")
 	}
 	for _, tname := range []string{"input_finished", "idle_done", "input_cancelled", ""} {
 		if isInputRequiredNotificationType(tname) {
@@ -311,13 +336,9 @@ func TestParseNotificationPermissionGrantedIsNotPermissionRequired(t *testing.T)
 		"notificationType":"permission_granted",
 		"message":"Permission was granted"
 	}`)
-	msg, err := parseMessageBytes(raw)
-	if err != nil {
-		t.Fatalf("ParseMessage() error = %v", err)
-	}
-	// Without allowlist match, falls through to input_required (non-empty message).
-	if msg.Event != "input_required" {
-		t.Fatalf("Event = %q, want input_required for permission_granted", msg.Event)
+	_, err := parseMessageBytes(raw)
+	if err == nil {
+		t.Fatal("permission_granted is a status ping and should be skipped")
 	}
 }
 

@@ -35,6 +35,8 @@ type payload struct {
 	ToolResponseCamel json.RawMessage `json:"toolResponse"`
 	Error             string          `json:"error"`
 	ErrorMessage      string          `json:"errorMessage"`
+	Reason            string          `json:"reason"`
+	ReasonCamel       string          `json:"Reason"`
 }
 
 func (p payload) eventOf() string {
@@ -79,6 +81,13 @@ func (p payload) notificationTypeOf() string {
 	return p.NotificationTypeCamel
 }
 
+func (p payload) reasonOf() string {
+	if p.Reason != "" {
+		return p.Reason
+	}
+	return p.ReasonCamel
+}
+
 func ParseMessage(stdin io.Reader) (notify.Message, error) {
 	var p payload
 	if err := common.DecodeHookPayload(stdin, &p); err != nil {
@@ -99,6 +108,9 @@ func ParseMessage(stdin io.Reader) (notify.Message, error) {
 	case "notification":
 		return parseNotification(p)
 	case "stop":
+		if !isGenuineTurnStop(p.reasonOf()) {
+			return notify.Message{}, fmt.Errorf("skip grok stop reason=%s", p.reasonOf())
+		}
 		return notify.Message{
 			Agent:     "grok",
 			Event:     "run_completed",
@@ -107,6 +119,8 @@ func ParseMessage(stdin io.Reader) (notify.Message, error) {
 			Title:     notify.FormatTitle("grok", "run_completed"),
 			Body:      notify.DefaultBody("run_completed"),
 		}, nil
+	case "stop_cancelled":
+		return notify.Message{}, fmt.Errorf("skip grok stop_cancelled reason=%s", p.reasonOf())
 	case "stop_failure", "post_tool_use_failure":
 		errMsg := extractErrorMessage(p)
 		tool := strings.TrimSpace(p.toolNameOf())
@@ -132,6 +146,12 @@ func parseNotification(p payload) (notify.Message, error) {
 	notifType := p.notificationTypeOf()
 	typeLower := strings.ToLower(strings.TrimSpace(notifType))
 	msgLower := strings.ToLower(strings.TrimSpace(msg))
+
+	// idle_prompt is a session-idle chime after any turn end (including auto
+	// permission / completed turns), not "Grok is blocked waiting for you".
+	if isIdleOrStatusNotificationType(typeLower) {
+		return notify.Message{}, fmt.Errorf("skip grok notification type=%s", notifType)
+	}
 
 	// Prefer structured notificationType over free-text keyword matching so
 	// ordinary words like "permission" / "approval" in message bodies do not
@@ -162,12 +182,6 @@ func parseNotification(p payload) (notify.Message, error) {
 		}, nil
 	}
 	if isInputRequiredNotificationMessage(msgLower) {
-		return inputRequiredMessage(p, msg, notifType), nil
-	}
-
-	// Unknown notification with any payload → input_required (Grok idle prompts
-	// often omit notificationType). Empty payloads are rejected.
-	if strings.TrimSpace(msg) != "" || strings.TrimSpace(notifType) != "" {
 		return inputRequiredMessage(p, msg, notifType), nil
 	}
 
@@ -220,6 +234,8 @@ func normalizeEventName(name string) string {
 		return "notification"
 	case "Stop", "stop":
 		return "stop"
+	case "StopCancelled", "stop_cancelled":
+		return "stop_cancelled"
 	case "StopFailure", "stop_failure":
 		return "stop_failure"
 	case "PostToolUseFailure", "post_tool_use_failure":
@@ -247,12 +263,40 @@ func isPermissionNotificationType(t string) bool {
 	}
 }
 
-// isInputRequiredNotificationType matches structured notificationType values for idle/input.
-// Explicit allowlist only — HasPrefix("input_") / HasPrefix("idle_") is too broad (issue #22).
-func isInputRequiredNotificationType(t string) bool {
+// isIdleOrStatusNotificationType is a session-state ping, not a user-attention gate.
+// Grok docs: idle_prompt fires after any turn end (complete / interrupt / error).
+// isGenuineTurnStop reports whether a Stop hook is a completed agent turn.
+// Grok also fires observe-only Stop at session end (channel_closed / shutdown)
+// and Ctrl+C uses StopCancelled or a non-end_turn reason; those must not notify.
+// Empty reason keeps older payloads (and testdata) as turn completion.
+func isGenuineTurnStop(reason string) bool {
+	switch strings.ToLower(strings.TrimSpace(reason)) {
+	case "", "end_turn":
+		return true
+	default:
+		return false
+	}
+}
+
+func isIdleOrStatusNotificationType(t string) bool {
 	switch t {
 	case "idle_prompt",
-		"input_required",
+		"task_complete",
+		"task_completed",
+		"permission_granted",
+		"permission_revoked",
+		"permission_denied":
+		return true
+	default:
+		return false
+	}
+}
+
+// isInputRequiredNotificationType matches structured notificationType values for
+// a real "waiting for you" prompt. idle_prompt is intentionally excluded.
+func isInputRequiredNotificationType(t string) bool {
+	switch t {
+	case "input_required",
 		"waiting_input",
 		"needs_input":
 		return true
