@@ -9,9 +9,12 @@ import (
 
 func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 	got := BuildHookSettings("/tmp/agent-notify")
-	for _, event := range managedEvents {
-		if !strings.Contains(got, "event = \""+event+"\"") {
-			t.Fatalf("missing event %s in:\n%s", event, got)
+	for _, hook := range managedHooks {
+		if !strings.Contains(got, "event = \""+hook.Event+"\"") {
+			t.Fatalf("missing event %s in:\n%s", hook.Event, got)
+		}
+		if hook.Matcher != "" && !strings.Contains(got, "matcher = \""+hook.Matcher+"\"") {
+			t.Fatalf("missing matcher %s in:\n%s", hook.Matcher, got)
 		}
 	}
 	if !strings.Contains(got, "handle-kimi-hook") {
@@ -32,9 +35,12 @@ func TestInstall_CreatesHooksInNewFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	content := string(data)
-	for _, event := range managedEvents {
-		if !strings.Contains(content, "event = \""+event+"\"") {
-			t.Fatalf("missing event %s in:\n%s", event, content)
+	for _, hook := range managedHooks {
+		if !strings.Contains(content, "event = \""+hook.Event+"\"") {
+			t.Fatalf("missing event %s in:\n%s", hook.Event, content)
+		}
+		if hook.Matcher != "" && !strings.Contains(content, "matcher = \""+hook.Matcher+"\"") {
+			t.Fatalf("missing matcher %s in:\n%s", hook.Matcher, content)
 		}
 	}
 
@@ -105,6 +111,37 @@ func TestInstall_ReplacesEmptyHooksArray(t *testing.T) {
 	}
 	if !strings.Contains(content, "[[hooks]]") {
 		t.Fatal("expected [[hooks]] tables")
+	}
+}
+
+func TestInstall_AddsChoiceHooksToExistingInstall(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	existing := `default_model = "k3"
+
+[[hooks]]
+event = "Stop"
+command = "\"/tmp/agent-notify\" handle-kimi-hook"
+`
+	if err := os.WriteFile(path, []byte(existing), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, `matcher = "AskUserQuestion"`) {
+		t.Fatalf("missing AskUserQuestion matcher:\n%s", content)
+	}
+	if !strings.Contains(content, `matcher = "question"`) {
+		t.Fatalf("missing question matcher:\n%s", content)
+	}
+	if strings.Count(content, `event = "Stop"`) != 1 {
+		t.Fatalf("Stop hook should stay unique:\n%s", content)
 	}
 }
 

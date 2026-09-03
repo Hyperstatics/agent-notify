@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "TaskStarted",
+  "session_id": "sess-kimi-9",
+  "cwd": "/Users/demo/project",
+  "kind": "question",
+  "description": "Choose a color scheme"
+}

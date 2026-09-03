@@ -1,0 +1,18 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "sess-kimi-8",
+  "cwd": "/Users/demo/project",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      {
+        "question": "Which approach should we take?",
+        "header": "Plan",
+        "options": [
+          {"label": "A", "description": "Rewrite"},
+          {"label": "B (Recommended)", "description": "Patch"}
+        ]
+      }
+    ]
+  }
+}

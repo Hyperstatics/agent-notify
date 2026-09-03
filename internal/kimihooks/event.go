@@ -9,6 +9,7 @@
 package kimihooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -20,23 +21,34 @@ import (
 // payload 描述 Kimi Code hooks 通过 stdin 投递的事件 JSON。
 // 官方文档字段为 snake_case；同时兼容 camelCase，避免 CLI 版本差异。
 type payload struct {
-	HookEventName         string `json:"hook_event_name"`
-	HookEventNameCamel    string `json:"hookEventName"`
-	SessionID             string `json:"session_id"`
-	SessionIDCamel        string `json:"sessionId"`
-	CWD                   string `json:"cwd"`
-	SessionTitle          string `json:"session_title"`
-	NotificationType      string `json:"notification_type"`
-	NotificationTypeCamel string `json:"notificationType"`
-	Title                 string `json:"title"`
-	Body                  string `json:"body"`
-	Message               string `json:"message"`
-	ToolName              string `json:"tool_name"`
-	ToolNameCamel         string `json:"toolName"`
-	Error                 string `json:"error"`
-	ErrorType             string `json:"error_type"`
-	ErrorMessage          string `json:"error_message"`
-	ErrorMessageCamel     string `json:"errorMessage"`
+	HookEventName         string          `json:"hook_event_name"`
+	HookEventNameCamel    string          `json:"hookEventName"`
+	SessionID             string          `json:"session_id"`
+	SessionIDCamel        string          `json:"sessionId"`
+	CWD                   string          `json:"cwd"`
+	SessionTitle          string          `json:"session_title"`
+	NotificationType      string          `json:"notification_type"`
+	NotificationTypeCamel string          `json:"notificationType"`
+	Title                 string          `json:"title"`
+	Body                  string          `json:"body"`
+	Message               string          `json:"message"`
+	ToolName              string          `json:"tool_name"`
+	ToolNameCamel         string          `json:"toolName"`
+	ToolInput             json.RawMessage `json:"tool_input"`
+	ToolInputCamel        json.RawMessage `json:"toolInput"`
+	Kind                  string          `json:"kind"`
+	TaskKind              string          `json:"task_kind"`
+	Description           string          `json:"description"`
+	AgentName             string          `json:"agent_name"`
+	AgentNameCamel        string          `json:"agentName"`
+	AgentType             string          `json:"agent_type"`
+	AgentTypeCamel        string          `json:"agentType"`
+	SubagentType          string          `json:"subagent_type"`
+	SubagentTypeCamel     string          `json:"subagentType"`
+	Error                 string          `json:"error"`
+	ErrorType             string          `json:"error_type"`
+	ErrorMessage          string          `json:"error_message"`
+	ErrorMessageCamel     string          `json:"errorMessage"`
 }
 
 func (p payload) eventOf() string {
@@ -83,6 +95,20 @@ func (p payload) errorMessageOf() string {
 	return ""
 }
 
+func (p payload) kindOf() string {
+	if p.Kind != "" {
+		return p.Kind
+	}
+	return p.TaskKind
+}
+
+func (p payload) toolInputOf() map[string]any {
+	if m := common.LenientObject(p.ToolInput); m != nil {
+		return m
+	}
+	return common.LenientObject(p.ToolInputCamel)
+}
+
 func ParseMessage(stdin io.Reader) (notify.Message, error) {
 	var p payload
 	if err := common.DecodeHookPayload(stdin, &p); err != nil {
@@ -111,7 +137,34 @@ func ParseMessage(stdin io.Reader) (notify.Message, error) {
 		}, nil
 	case "notification":
 		return parseNotification(p)
+	case "pre_tool_use":
+		if !isAskUserQuestionTool(p.toolNameOf()) {
+			return notify.Message{}, fmt.Errorf("unsupported hook event: %s tool=%s", p.eventOf(), p.toolNameOf())
+		}
+		return inputRequiredMessage(p, extractQuestionHint(p), "AskUserQuestion"), nil
+	case "task_started":
+		if !isQuestionTaskKind(p.kindOf()) {
+			return notify.Message{}, fmt.Errorf("unsupported hook event: %s kind=%s", p.eventOf(), p.kindOf())
+		}
+		return inputRequiredMessage(p, firstNonEmpty(p.Description, p.Title, p.Message, "请选择一个选项"), "question"), nil
+	case "subagent_start":
+		return notify.Message{
+			Agent:     "kimi",
+			Event:     "subagent_start",
+			SessionID: p.sessionOf(),
+			Workspace: p.CWD,
+		}, nil
+	case "subagent_stop":
+		return notify.Message{
+			Agent:     "kimi",
+			Event:     "subagent_stop",
+			SessionID: p.sessionOf(),
+			Workspace: p.CWD,
+		}, nil
 	case "stop":
+		if isSubagentPayload(p) {
+			return notify.Message{}, fmt.Errorf("skip subagent stop")
+		}
 		body := notify.DefaultBody("run_completed")
 		if hint := firstNonEmpty(p.Body, p.Message, p.SessionTitle); hint != "" {
 			body = common.TruncateRunes(hint, 200)
@@ -165,30 +218,8 @@ func parseNotification(p payload) (notify.Message, error) {
 	if isInputRequiredNotificationType(notifType) || isInputRequiredNotificationMessage(strings.ToLower(msg)) {
 		return inputRequiredMessage(p, msg, notifType), nil
 	}
-	if isTaskCompletedNotificationType(notifType) {
-		body := notify.DefaultBody("run_completed")
-		if msg != "" {
-			body = common.TruncateRunes(msg, 200)
-		}
-		return notify.Message{
-			Agent:     "kimi",
-			Event:     "run_completed",
-			SessionID: p.sessionOf(),
-			Workspace: p.CWD,
-			Title:     notify.FormatTitle("kimi", "run_completed"),
-			Body:      body,
-		}, nil
-	}
-	if isTaskFailedNotificationType(notifType) {
-		errMsg := firstNonEmpty(msg, "未知错误")
-		return notify.Message{
-			Agent:     "kimi",
-			Event:     "run_failed",
-			SessionID: p.sessionOf(),
-			Workspace: p.CWD,
-			Title:     notify.FormatTitle("kimi", "run_failed"),
-			Body:      fmt.Sprintf("错误: %s", common.TruncateRunes(errMsg, 200)),
-		}, nil
+	if isTaskCompletedNotificationType(notifType) || isTaskFailedNotificationType(notifType) {
+		return notify.Message{}, fmt.Errorf("skip background task notification type=%s", notifType)
 	}
 
 	// Unknown notification with any payload → input_required, matching Grok.
@@ -246,9 +277,47 @@ func normalizeEventName(name string) string {
 		return "stop_failure"
 	case "PostToolUseFailure", "post_tool_use_failure":
 		return "post_tool_use_failure"
+	case "PreToolUse", "pre_tool_use":
+		return "pre_tool_use"
+	case "TaskStarted", "task_started":
+		return "task_started"
+	case "SubagentStart", "subagent_start":
+		return "subagent_start"
+	case "SubagentStop", "subagent_stop":
+		return "subagent_stop"
 	default:
 		return strings.ToLower(name)
 	}
+}
+
+func isSubagentPayload(p payload) bool {
+	return strings.TrimSpace(p.AgentName) != "" ||
+		strings.TrimSpace(p.AgentNameCamel) != "" ||
+		strings.TrimSpace(p.AgentType) != "" ||
+		strings.TrimSpace(p.AgentTypeCamel) != "" ||
+		strings.TrimSpace(p.SubagentType) != "" ||
+		strings.TrimSpace(p.SubagentTypeCamel) != ""
+}
+
+func isAskUserQuestionTool(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	return n == "askuserquestion" || n == "ask_user_question"
+}
+
+func isQuestionTaskKind(kind string) bool {
+	return strings.EqualFold(strings.TrimSpace(kind), "question")
+}
+
+func extractQuestionHint(p payload) string {
+	input := p.toolInputOf()
+	if qs, ok := input["questions"].([]any); ok && len(qs) > 0 {
+		if q, ok := qs[0].(map[string]any); ok {
+			if s, ok := q["question"].(string); ok && strings.TrimSpace(s) != "" {
+				return strings.TrimSpace(s)
+			}
+		}
+	}
+	return firstNonEmpty(p.Description, p.Title, p.Message, p.Body, "请选择一个选项")
 }
 
 func isPermissionNotificationType(t string) bool {

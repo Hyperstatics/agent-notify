@@ -78,7 +78,7 @@ func TestKimiIntegration_Install(t *testing.T) {
 		t.Fatal(err)
 	}
 	content := string(data)
-	for _, event := range []string{"SessionStart", "PermissionRequest", "Notification", "Stop", "StopFailure", "PostToolUseFailure"} {
+	for _, event := range []string{"SessionStart", "PermissionRequest", "Notification", "Stop", "StopFailure", "PostToolUseFailure", "PreToolUse", "TaskStarted", "SubagentStart", "SubagentStop"} {
 		if !strings.Contains(content, `event = "`+event+`"`) {
 			t.Errorf("config should register %s, got:\n%s", event, content)
 		}

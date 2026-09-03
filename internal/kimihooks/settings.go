@@ -2,7 +2,6 @@ package kimihooks
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"regexp"
 	"strconv"
@@ -16,18 +15,31 @@ import (
 // hookCommandMarker 用于识别本插件写入的 Kimi hook。
 const hookCommandMarker = "handle-kimi-hook"
 
-// managedEvents 是本插件托管的 Kimi Code 事件列表。
+// managedHook 是一条本插件托管的 Kimi [[hooks]] 规则。
+// Matcher 为空表示匹配该事件的全部目标；PreToolUse / TaskStarted 必须收窄，
+// 否则每次工具调用或后台任务启动都会弹通知。
+type managedHook struct {
+	Event   string
+	Matcher string
+}
+
+// managedHooks 是本插件托管的 Kimi Code 事件列表。
 // Kimi Code 把 hook 写在 ~/.kimi-code/config.toml 的 [[hooks]] 数组里，
 // 事件名为 PascalCase；stdin 的 hook_event_name 与之对应。
-// PermissionRequest 是独立事件；Notification 覆盖授权/等待输入/后台任务。
-// StopFailure / PostToolUseFailure 映射为 run_failed。
-var managedEvents = []string{
-	"SessionStart",
-	"PermissionRequest",
-	"Notification",
-	"Stop",
-	"StopFailure",
-	"PostToolUseFailure",
+// PermissionRequest 覆盖计划审批等授权等待。
+// PreToolUse(AskUserQuestion) / TaskStarted(question) 覆盖「请选择选项」。
+// Notification 覆盖后台任务状态；StopFailure / PostToolUseFailure 映射为 run_failed。
+var managedHooks = []managedHook{
+	{Event: "SessionStart"},
+	{Event: "PermissionRequest"},
+	{Event: "Notification"},
+	{Event: "Stop"},
+	{Event: "StopFailure"},
+	{Event: "PostToolUseFailure"},
+	{Event: "PreToolUse", Matcher: "AskUserQuestion"},
+	{Event: "TaskStarted", Matcher: "question"},
+	{Event: "SubagentStart"},
+	{Event: "SubagentStop"},
 }
 
 type hookEntry struct {
@@ -45,11 +57,11 @@ type kimiTOML struct {
 func BuildHookSettings(binaryPath string) string {
 	command := buildHookCommand(binaryPath)
 	var b strings.Builder
-	for i, event := range managedEvents {
+	for i, hook := range managedHooks {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		b.WriteString(formatHookBlock(event, command))
+		b.WriteString(formatHookBlock(hook, command))
 	}
 	return b.String()
 }
@@ -59,8 +71,19 @@ func buildHookCommand(binaryPath string) string {
 	return common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 }
 
-func formatHookBlock(event, command string) string {
-	return fmt.Sprintf("[[hooks]]\nevent = %s\ncommand = %s\n", strconv.Quote(event), strconv.Quote(command))
+func formatHookBlock(hook managedHook, command string) string {
+	var b strings.Builder
+	b.WriteString("[[hooks]]\n")
+	b.WriteString("event = " + strconv.Quote(hook.Event) + "\n")
+	if hook.Matcher != "" {
+		b.WriteString("matcher = " + strconv.Quote(hook.Matcher) + "\n")
+	}
+	b.WriteString("command = " + strconv.Quote(command) + "\n")
+	return b.String()
+}
+
+func hookKey(event, matcher string) string {
+	return event + "\x00" + matcher
 }
 
 // Install 以增量方式把 agent-notify 的 [[hooks]] 追加到 Kimi config.toml。
@@ -73,12 +96,12 @@ func Install(path string, binaryPath string) error {
 	}
 
 	command := buildHookCommand(binaryPath)
-	have := managedEventsPresent(data)
+	have := managedHooksPresent(data)
 
-	var missing []string
-	for _, event := range managedEvents {
-		if !have[event] {
-			missing = append(missing, event)
+	var missing []managedHook
+	for _, hook := range managedHooks {
+		if !have[hookKey(hook.Event, hook.Matcher)] {
+			missing = append(missing, hook)
 		}
 	}
 	if len(missing) == 0 {
@@ -92,8 +115,8 @@ func Install(path string, binaryPath string) error {
 	if len(strings.TrimSpace(text)) > 0 {
 		text += "\n"
 	}
-	for _, event := range missing {
-		text += formatHookBlock(event, command)
+	for _, hook := range missing {
+		text += formatHookBlock(hook, command)
 		text += "\n"
 	}
 
@@ -104,7 +127,7 @@ func Install(path string, binaryPath string) error {
 	return common.WriteFileAtomicWithBackup(path, []byte(text), perm)
 }
 
-func managedEventsPresent(data []byte) map[string]bool {
+func managedHooksPresent(data []byte) map[string]bool {
 	have := map[string]bool{}
 	if len(data) == 0 {
 		return have
@@ -115,7 +138,7 @@ func managedEventsPresent(data []byte) map[string]bool {
 	}
 	for _, h := range parsed.Hooks {
 		if strings.Contains(h.Command, hookCommandMarker) {
-			have[h.Event] = true
+			have[hookKey(h.Event, h.Matcher)] = true
 		}
 	}
 	return have
@@ -140,9 +163,9 @@ func IsInstalled(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	have := managedEventsPresent(data)
-	for _, event := range managedEvents {
-		if have[event] {
+	have := managedHooksPresent(data)
+	for _, hook := range managedHooks {
+		if have[hookKey(hook.Event, hook.Matcher)] {
 			return true, nil
 		}
 	}

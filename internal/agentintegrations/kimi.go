@@ -57,7 +57,8 @@ func (k *KimiIntegration) SettingsPath(scope string) (string, error) {
 }
 
 // Install writes [[hooks]] entries for SessionStart / PermissionRequest /
-// Notification / Stop / StopFailure / PostToolUseFailure into config.toml.
+// Notification / Stop / StopFailure / PostToolUseFailure / PreToolUse /
+// TaskStarted into config.toml.
 func (k *KimiIntegration) Install(settingsPath, binaryPath string) error {
 	return kimihooks.Install(settingsPath, common.ResolveBinaryPath(binaryPath))
 }

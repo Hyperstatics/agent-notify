@@ -17,5 +17,10 @@ func Handle(ctx context.Context, cfg config.Config, statePath, logPath string, s
 		return state.AppendLog(logPath, fmt.Sprintf("skip event: %v", err))
 	}
 
+	store := newSubagentStore(subagentStorePath(statePath))
+	if drop, reason := trackSubagentLifecycle(store, msg); drop {
+		return state.AppendLog(logPath, fmt.Sprintf("skip event: %s session=%s", reason, msg.SessionID))
+	}
+
 	return agenthooks.Dispatch(ctx, cfg, statePath, logPath, msg)
 }
