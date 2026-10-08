@@ -16,7 +16,7 @@
 
 ## 项目简介
 
-一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、OpenCode、ZCode (Z.ai)、Grok、Kimi、Droid 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
+一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、OpenCode、ZCode (Z.ai)、Grok、Kimi、Droid、Pi 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
 
 <p align="center">
   <img src="assist/demo.gif" alt="Agent Notify 演示" width="800">
@@ -45,12 +45,12 @@ npx agent-notify
 
 ### 支持的事件
 
-| 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Kimi | Droid |
-|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
-| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ |
-| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ | ✅ |
-| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ |
-| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | ✅ | — |
+| 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Kimi | Droid | Pi |
+|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|:---:|
+| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ | ✅ |
+| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ | ✅ | ✅ |
+| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ | ✅ |
+| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | ✅ | — | ✅ |
 
 说明：
 
@@ -61,6 +61,7 @@ npx agent-notify
 - Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件；`permission_prompt` 映射为 `permission_required`。真正在等你的类型（`input_required` / `waiting_input` / `needs_input`）映射为 `input_required`。`idle_prompt` 会跳过：它在任意一轮结束后都会触发（包括自动授权完成），并不表示卡住等你。`Stop` 仅在 `reason` 为 `end_turn`（或省略）时映射为 `run_completed`；会话结束的 Stop（`channel_closed` / `shutdown`）和 Ctrl+C（`StopCancelled`）会跳过。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
 - Kimi Code 通过 `~/.kimi-code/config.toml`（或 `$KIMI_CODE_HOME/config.toml`）的 `[[hooks]]` 订阅 `SessionStart`、`PermissionRequest`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`、`PreToolUse`（`AskUserQuestion`）、`TaskStarted`（`question`）、`SubagentStart`、`SubagentStop`。`PermissionRequest` 映射为 `permission_required`（审批计划）；选项选择走 `PreToolUse`/`TaskStarted`，映射为 `input_required`。Kimi 在子代理每轮结束时也会发普通 `Stop`（payload 与主代理相同，且早于 `SubagentStop`），因此用进行中的子代理计数丢掉这段 `Stop`，只有主代理的 `Stop` 才映射为 `run_completed`。后台 `Notification` 的 `task.completed` / `task.failed` 忽略。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。Kimi Code 目前没有项目级配置。Hooks 仍是 Kimi Code 的 Beta 功能。
 - Droid 通过 `~/.factory/hooks.json` 订阅 `SessionStart`、`Notification`、`Stop`，映射为 `session_start` / `permission_required`|`input_required` / `run_completed`。Droid 无失败事件，故不支持 `run_failed`。`session_start` 仅用于点击聚焦的窗口捕获，不作为通知事件。
+- Pi 使用自动发现的 JavaScript 扩展：用户级路径为 `~/.pi/agent/extensions/agent-notify.js`（或 `$PI_CODING_AGENT_DIR/extensions/agent-notify.js`），项目级路径为 `.pi/extensions/agent-notify.js`。扩展订阅 `session_start` 和阻塞式扩展 UI 弹窗，记录 `agent_before_settle` outcome，待 `agent_settled` 后才发送完成/失败通知。确认弹窗映射为 `permission_required`，其他弹窗映射为 `input_required`，完成/错误映射为 `run_completed` / `run_failed`。Pi 默认不会为每个工具调用请求审批；项目扩展需先信任项目才会加载。
 - **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。
 
 ### 支持的平台
@@ -101,6 +102,8 @@ npx agent-notify
 > **Grok**: 写入 `~/.grok/hooks/agent-notify.json`。全局 hooks 始终可信；项目级 hooks（`.grok/hooks/`）需在仓库内运行 `/hooks-trust` 或使用 `--trust`。安装后可在 Grok 中运行 `/hooks`（或 `Ctrl+L`）确认已加载。
 >
 > **Kimi**: 向 `~/.kimi-code/config.toml` 追加 `[[hooks]]`。安装后请在 Kimi 中运行 `/hooks` 确认已加载。Kimi Code 的 Hooks 目前为 Beta。
+>
+> **Pi**: 扩展写入 Pi 的用户级或项目级扩展目录。运行 `/reload` 加载；项目扩展需要先信任项目。
 
 
 ## 配置说明
@@ -118,6 +121,7 @@ Agent 集成配置位置：
 - Grok: `~/.grok/hooks/agent-notify.json`（写入 hooks → 命令 `agent-notify handle-grok-hook`；项目 scope 为 `.grok/hooks/agent-notify.json`）
 - Kimi: `~/.kimi-code/config.toml`（写入 `[[hooks]]` → 命令 `agent-notify handle-kimi-hook`；仅 user scope）
 - Droid: `~/.factory/hooks.json`（写入 hooks → 命令 `agent-notify handle-droid-hook`；项目 scope 为 `.factory/hooks.json`）
+- Pi: `~/.pi/agent/extensions/agent-notify.js`（或 `$PI_CODING_AGENT_DIR/extensions/agent-notify.js`；项目 scope 为 `.pi/extensions/agent-notify.js`；命令 `agent-notify handle-pi-hook`）
 
 ### 企业微信机器人绑定小技巧
 

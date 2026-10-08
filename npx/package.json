@@ -1,12 +1,13 @@
 {
   "name": "agent-notify",
   "version": "0.14.3",
-  "description": "Get notified the moment your AI coding agent needs you — Claude Code, Codex, ZCode & Grok → phone & desktop (Feishu, WeCom, DingTalk, Bark, ntfy, Slack).",
+  "description": "Get notified the moment your AI coding agent needs you — Claude Code, Codex, Pi, ZCode & Grok → phone & desktop (Feishu, WeCom, DingTalk, Bark, ntfy, Slack).",
   "keywords": [
     "claude-code",
     "codex",
     "zcode",
     "grok",
+    "pi",
     "ai-agent",
     "agent",
     "notifications",

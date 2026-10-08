@@ -5,6 +5,7 @@ import (
 
 	"github.com/hellolib/agent-notify/internal/agentintegrations"
 	"github.com/hellolib/agent-notify/internal/opencodehooks"
+	"github.com/hellolib/agent-notify/internal/pihooks"
 )
 
 // isHeadlessInvocation 判断本次调用是否由 agent/系统自动拉起（hook 路径），
@@ -38,4 +39,16 @@ func refreshOpenCodePlugin() {
 		return
 	}
 	_, _ = opencodehooks.RefreshPluginIfStale(pluginPath)
+}
+
+// refreshPiExtension keeps the auto-discovered Pi extension current after binary upgrades.
+func refreshPiExtension() {
+	integration := agentintegrations.NewPiIntegration()
+	for _, scope := range []string{"user", "project"} {
+		path, err := integration.SettingsPath(scope)
+		if err != nil {
+			continue
+		}
+		_, _ = pihooks.RefreshExtensionIfStale(path)
+	}
 }

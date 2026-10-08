@@ -141,6 +141,8 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 		notifyCfg = cfg.Notify.Droid
 	case "opencode":
 		notifyCfg = cfg.Notify.OpenCode
+	case "pi":
+		notifyCfg = cfg.Notify.Pi
 	}
 
 	if !contains(notifyCfg.Events, msg.Event) {

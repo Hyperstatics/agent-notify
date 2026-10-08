@@ -1,52 +1,35 @@
-# CLAUDE.md
+# Agent Notify
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 项目概况
 
-## What this is
+Agent Notify 监听 Claude Code、Codex、ZCode、Grok、Kimi、Droid、OpenCode 的生命周期事件，将通知发送到桌面和手机渠道。它以 Go binary 发布，并由 `npx agent-notify` 下载对应平台的 release binary 到 `~/.agent-notify/`。
 
-Agent Notify hooks into lifecycle events of AI coding agents (Claude Code, Codex, ZCode, Grok, Kimi, Droid, OpenCode) and pushes notifications to desktop and phone (system notifications, Feishu, WeChat Work, DingTalk, Bark, ntfy, Slack). Distributed as a Go binary via an npx launcher (`npx agent-notify`) that downloads the platform binary from GitHub Releases into `~/.agent-notify/`.
-
-## Commands
+## 常用命令
 
 ```bash
-make build            # Build to bin/agent-notify (ldflags inject internal/cli.Version)
-make test             # go test -v ./...
-go test ./internal/notify -run TestName   # Run a single test
-make lint             # golangci-lint run ./...
-make fmt              # gofmt -s -w .
-make vet              # go vet ./...
-
-cd npx && npm test    # Node launcher tests (node --test)
-
-make release VERSION=v0.x.y   # tag + push (triggers GH Actions release) + npm publish
+make build
+make test
+go test ./internal/notify -run TestName
+make lint
+make fmt
+make vet
+cd npx && npm test
+make release VERSION=v0.x.y
 ```
 
-The release workflow (`.github/workflows/release.yml`) builds a 6-target matrix on tag push and bundles the prebuilt helpers from `thirdparty/helper/` into the platform archives (macOS: terminal-notifier.app + mac-focus-helper; Windows: toast-focus-helper.exe).
+`make release` 会打 tag、push、触发 GitHub Actions，并发布 npm；只在用户明确授权发布时执行。release workflow 为 6 个目标构建，并把 `thirdparty/helper/` 的平台 helper 打入归档。
 
-## Architecture
+## 架构与关键约束
 
-The binary has two personalities:
-1. **Interactive TUI** (`agent-notify` / `init`, `doctor`, `test`) — setup wizard that writes `~/.agent-notify/config.yaml` and installs hooks into each agent's config file.
-2. **Hook handlers** (`handle-claude-hook`, `handle-codex-hook`, `handle-zcode-hook`, `handle-grok-hook`, `handle-kimi-hook`, `handle-droid-hook`, `handle-opencode-hook`) — invoked by the agents themselves; read a hook event JSON from stdin, normalize it, and fan out notifications. These run headless and must never block or prompt.
+- TUI（`agent-notify`、`init`、`doctor`、`test`）负责配置向导、写入 `~/.agent-notify/config.yaml` 和安装各 agent 的 hooks。
+- Headless hook handler（`handle-*-hook`）从 stdin 读取事件 JSON，转换为 `permission_required`、`input_required`、`run_completed`、`run_failed`、`session_start` 等标准事件，再由 `internal/agenthooks.Dispatch` 解析来源和 workspace、处理 `session_start` 的 focus side effect（不通知）、去重并发送。handler 不得阻塞或 prompt；失败写入 state log 并返回 nil，不能破坏宿主 agent。
+- 新增 agent 要有 `event.go`、`settings.go`、`handler.go` 形态的集成包，并接入 `internal/agentintegrations` 与 `internal/agenthooks/dispatch.go:buildSenders`。Kimi 使用 TOML `[[hooks]]`，安装/卸载必须保留注释和其他 key。
+- `internal/config.Load` 将 YAML 解入 `Default()`，缺省 key 自动继承默认值；新增字段或 agent 不要再手工补 `Load`。默认值含义改变时，递增 `currentConfigVersion` 并在 `Load` 增加版本迁移。新安装默认关闭所有 agent/channel，由向导启用。
+- `internal/state` 保存去重 reservation、按 session ID 的 focus cache 和 append-only log。点击通知回到原终端/IDE；macOS 精度由 `AGENT_NOTIFY_FOCUS_PRECISION`（`app` 默认、`window`）控制，窗口快照在 `session_start` 捕获。
+- OpenCode 没有原生 hook，使用 `internal/opencodehooks/plugin_embed.js` 注册到用户 `~/.config/opencode/opencode.json` 或项目 `./opencode.json`，分发到 `~/.agent-notify/opencode-plugin.js`。只依赖公开 Session Events；`session.next.*` 不会发布。`question.asked` 的 choice form 可能让 session 保持 busy，必须保留订阅；`TestPluginSubscriptionMatchesParser` 保证 allowlist 与 parser 同步。
+- `internal/notify` 按渠道实现 `Sender`，dispatcher 按 agent/session/event/content-hash/sender 去重；`internal/i18n` 只负责 TUI 文本，通知格式在 `internal/notify/format.go`。`npx/` 是除 `tar` 外无运行时依赖的 CommonJS launcher，`npm run prepack` 同步仓库 README。
 
-Event flow: agent fires hook → `internal/cli/handler_*.go` → `internal/<agent>hooks/event.go` parses stdin JSON and maps agent-specific events to normalized events (`permission_required`, `input_required`, `run_completed`, `run_failed`, `session_start`) → `internal/agenthooks.Dispatch` → `internal/notify.Dispatcher.SendAll` fans out to enabled channel `Sender`s with dedupe.
+## 修改时注意
 
-Key packages:
-
-- `internal/cli` — cobra commands, setup wizard menus/prompts (uses survey/v2).
-- `internal/claudehooks`, `codexhooks`, `zcodehooks`, `grokhooks`, `kimihooks`, `droidhooks`, `opencodehooks` — one package per agent, each with the same shape: `event.go` (stdin JSON → normalized `notify.Message`), `settings.go` (read/write hook registration in that agent's config file: `~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.zcode/cli/config.json`, `~/.grok/hooks/agent-notify.json`, `~/.kimi-code/config.toml`), `handler.go` (glue). Adding an agent means adding a package with this shape plus entries in `internal/agentintegrations` and `internal/agenthooks/dispatch.go:buildSenders`. Kimi uses TOML `[[hooks]]` instead of JSON; install/uninstall must preserve comments and other keys.
-- `internal/agenthooks` — `Dispatch`: detects source app from inherited env, resolves workspace, handles the `session_start` side-effect event (focus-window capture, never notifies), builds senders from per-agent config, dedupes, sends.
-- `internal/notify` — one file per channel implementing `Sender`; `dispatcher.go` dedupes per (agent, session, event, content-hash, sender) via `internal/state`. System notifications are per-OS (`macos.go`, `linux.go`, `windows.go` + build-tagged variants).
-- `internal/config` — `~/.agent-notify/config.yaml` schema. New installs start with all agents/channels disabled until the wizard enables them. `Load` unmarshals the YAML *into* `Default()`, so any key absent from a user's file inherits the default automatically — adding a field or an agent needs no change to `Load`. (It previously unmarshalled into a zero-value struct and hand-patched a list of fields; every field missed there silently got the Go zero value instead of its default, which is how `click_to_focus` ended up persisted as `false` for agents added after a user's config was first written.) When a default's *meaning* changes for existing files, bump `currentConfigVersion` and add a version-gated migration in `Load` (see `migrateV1ToV2`).
-- `internal/state` — file-backed dedupe reservations, focus-window cache (keyed by session ID), append-only log.
-- `internal/linuxfocus`, `internal/winfocus`, `internal/notify/macos.go` — click-to-focus: clicking a system notification refocuses the originating terminal/IDE window. Linux uses X11/EWMH window IDs; macOS/Windows use bundled helper binaries and window snapshots captured at `session_start`. macOS precision is controlled by `AGENT_NOTIFY_FOCUS_PRECISION` (`app` default / `window`).
-- `internal/i18n` — TUI localization (zh-CN default, en-US); notification text formatting lives separately in `internal/notify/format.go` and is not affected by TUI locale.
-- `npx/` — Node launcher (CommonJS, no runtime deps beyond `tar`): version-checks and downloads the release binary, then execs it by absolute path. `npm run prepack` syncs the repo README into the package.
-
-## Conventions
-
-- Code comments are predominantly Chinese; match the surrounding file's style.
-- ZCode's hook schema is strict — an unknown event name silently drops the entire hooks config, so be careful editing `internal/zcodehooks/settings.go`.
-- OpenCode has no native hook system; instead it uses a JS plugin (embedded via `go:embed` in `internal/opencodehooks/plugin_embed.js`, distributed to `~/.agent-notify/opencode-plugin.js`). The plugin path is registered in OpenCode's `opencode.json` `plugin` array (user: `~/.config/opencode/opencode.json`, project: `./opencode.json`). Events: `session.created`→`session_start`, `permission.asked`→`permission_required`, `question.asked`→`input_required`, `session.status`(idle)→`input_required`, `session.idle`→`run_completed`, `session.error`→`run_failed`. Note: OpenCode's `session.next.*` events are internal and never published to plugins — only the documented Session Events reach the plugin. A pending `question.asked` (the `ask` tool's choice form) leaves the session `busy`, so no idle event fires — it must stay explicitly subscribed in the plugin's allowlist; `TestPluginSubscriptionMatchesParser` guards that the JS allowlist and `ParseMessage` stay in sync.
-- Hook handlers log failures to the state log file and return nil rather than erroring loudly (an agent's hook must not break the agent).
-- `docs/` is gitignored (local design archives) — don't reference it from committed code or docs.
+- ZCode hook schema 严格：未知 event name 会静默丢弃整个 hooks config，修改 `internal/zcodehooks/settings.go` 要特别谨慎。
+- 代码注释以中文为主，跟随周边文件风格。`docs/` 已 gitignore，是本地设计归档，不要在提交代码或文档中引用它。

@@ -74,5 +74,8 @@ func slackURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.OpenCode.Channels.Slack.WebhookURL != "" {
 		return cfg.Notify.OpenCode.Channels.Slack.WebhookURL
 	}
+	if cfg.Notify.Pi.Channels.Slack.WebhookURL != "" {
+		return cfg.Notify.Pi.Channels.Slack.WebhookURL
+	}
 	return cfg.Notify.Droid.Channels.Slack.WebhookURL
 }

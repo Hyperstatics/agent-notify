@@ -24,7 +24,20 @@ func hookBinaryPath(settingsPath, marker string) string {
 			return common.BinaryPathFromHookCommand(cmd, marker)
 		}
 	}
-	return hookBinaryPathFromText(string(data), marker)
+	text := string(data)
+	if strings.Contains(text, "agent-notify:pi-extension") {
+		for _, line := range strings.Split(text, "\n") {
+			line = strings.TrimSpace(line)
+			if !strings.HasPrefix(line, "const BINARY =") {
+				continue
+			}
+			raw := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "const BINARY ="), ";"))
+			if binaryPath, err := strconv.Unquote(raw); err == nil {
+				return binaryPath
+			}
+		}
+	}
+	return hookBinaryPathFromText(text, marker)
 }
 
 func hookBinaryPathFromText(text, marker string) string {

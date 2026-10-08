@@ -32,6 +32,7 @@ type Service struct {
 	kimiIntegration     agentintegrations.Integration
 	droidIntegration    agentintegrations.Integration
 	opencodeIntegration agentintegrations.Integration
+	piIntegration       agentintegrations.Integration
 }
 
 // NewService creates a new doctor service.
@@ -44,6 +45,7 @@ func NewService(opts ...Option) *Service {
 		kimiIntegration:     agentintegrations.NewKimiIntegration(),
 		droidIntegration:    agentintegrations.NewDroidIntegration(),
 		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
+		piIntegration:       agentintegrations.NewPiIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -89,6 +91,10 @@ func WithDroidIntegration(i agentintegrations.Integration) Option {
 // WithOpenCodeIntegration sets the OpenCode integration.
 func WithOpenCodeIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.opencodeIntegration = i }
+}
+
+func WithPiIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.piIntegration = i }
 }
 
 type DiagnosticStatus string
@@ -173,6 +179,16 @@ type DiagnosticsResult struct {
 	OpenCodeBarkEnabled       bool
 	OpenCodeNtfyEnabled       bool
 	OpenCodeSlackEnabled      bool
+	PiInstalled               bool
+	PiHookInstalled           bool
+	PiFeishuEnabled           bool
+	PiSystemEnabled           bool
+	PiWechatEnabled           bool
+	PiWechatWorkEnabled       bool
+	PiDingTalkEnabled         bool
+	PiBarkEnabled             bool
+	PiNtfyEnabled             bool
+	PiSlackEnabled            bool
 	DroidFeishuEnabled        bool
 	DroidSystemEnabled        bool
 	DroidWechatEnabled        bool
@@ -188,6 +204,7 @@ type DiagnosticsResult struct {
 	KimiIntegrationStatus     DiagnosticStatus
 	DroidIntegrationStatus    DiagnosticStatus
 	OpenCodeIntegrationStatus DiagnosticStatus
+	PiIntegrationStatus       DiagnosticStatus
 
 	// Per-agent system-channel focus precision (effective "app"|"window").
 	ClaudeSystemFocusPrecision   string
@@ -197,6 +214,7 @@ type DiagnosticsResult struct {
 	KimiSystemFocusPrecision     string
 	DroidSystemFocusPrecision    string
 	OpenCodeSystemFocusPrecision string
+	PiSystemFocusPrecision       string
 
 	// Temporary notification freeze (from freeze.json).
 	FreezeActive   bool
@@ -217,6 +235,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.KimiInstalled = s.kimiIntegration != nil && s.kimiIntegration.DetectInstalled()
 	result.DroidInstalled = s.droidIntegration != nil && s.droidIntegration.DetectInstalled()
 	result.OpenCodeInstalled = s.opencodeIntegration != nil && s.opencodeIntegration.DetectInstalled()
+	result.PiInstalled = s.piIntegration != nil && s.piIntegration.DetectInstalled()
 
 	// System notification detection
 	result.SystemNotifyAvailable, result.SystemNotifyName = detectSystemNotification()
@@ -230,7 +249,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ConfigExists = cfgErr == nil
 
 	// hook 已注册但 command 指向的二进制不存在时,集成实际不可用(issue #34)
-	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, kimiBinaryMissing, droidBinaryMissing, opencodeBinaryMissing bool
+	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, kimiBinaryMissing, droidBinaryMissing, opencodeBinaryMissing, piBinaryMissing bool
 
 	// Claude hooks settings
 	claudeSettingsPath, _ := s.claudeIntegration.SettingsPath("user")
@@ -298,6 +317,15 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 		}
 	}
 
+	if s.piIntegration != nil {
+		piSettingsPath, _ := s.piIntegration.SettingsPath("user")
+		if piSettingsPath != "" {
+			installed, err := s.piIntegration.IsHookInstalled(piSettingsPath)
+			result.PiHookInstalled = err == nil && installed
+			piBinaryMissing = result.PiHookInstalled && hookBinaryMissing(piSettingsPath, "handle-pi-hook")
+		}
+	}
+
 	// Config values
 	result.ClaudeFeishuEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Feishu.Enabled
 	result.ClaudeSystemEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.System.Enabled
@@ -355,6 +383,14 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.OpenCodeBarkEnabled = cfgLoadErr == nil && cfg.Notify.OpenCode.Channels.Bark.Enabled
 	result.OpenCodeNtfyEnabled = cfgLoadErr == nil && cfg.Notify.OpenCode.Channels.Ntfy.Enabled
 	result.OpenCodeSlackEnabled = cfgLoadErr == nil && cfg.Notify.OpenCode.Channels.Slack.Enabled
+	result.PiFeishuEnabled = cfgLoadErr == nil && cfg.Notify.Pi.Channels.Feishu.Enabled
+	result.PiSystemEnabled = cfgLoadErr == nil && cfg.Notify.Pi.Channels.System.Enabled
+	result.PiWechatEnabled = cfgLoadErr == nil && cfg.Notify.Pi.Channels.Wechat.Enabled
+	result.PiWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.Pi.Channels.WechatWork.Enabled
+	result.PiDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.Pi.Channels.DingTalk.Enabled
+	result.PiBarkEnabled = cfgLoadErr == nil && cfg.Notify.Pi.Channels.Bark.Enabled
+	result.PiNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Pi.Channels.Ntfy.Enabled
+	result.PiSlackEnabled = cfgLoadErr == nil && cfg.Notify.Pi.Channels.Slack.Enabled
 
 	// Per-agent effective system focus precision, read fresh from the
 	// AGENT_NOTIFY_FOCUS_PRECISION environment variable.
@@ -365,6 +401,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.KimiSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.DroidSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.OpenCodeSystemFocusPrecision = config.FocusPrecisionFromEnv()
+	result.PiSystemFocusPrecision = config.FocusPrecisionFromEnv()
 
 	result.ClaudeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled, claudeBinaryMissing)
 	result.CodexIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled, codexBinaryMissing)
@@ -373,6 +410,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.KimiIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.KimiInstalled, result.KimiHookInstalled, kimiBinaryMissing)
 	result.DroidIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.DroidInstalled, result.DroidHookInstalled, droidBinaryMissing)
 	result.OpenCodeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.OpenCodeInstalled, result.OpenCodeHookInstalled, opencodeBinaryMissing)
+	result.PiIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.PiInstalled, result.PiHookInstalled, piBinaryMissing)
 
 	// Feishu CLI
 	_, feishuCLIConfigErr := feishucli.ParseConfig()
@@ -488,6 +526,13 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	opencodeNotifyStatus := padRight(diagnosticStatusLabel(result.OpenCodeIntegrationStatus), 14)
 	output.Writef(i18n.T("doctor.row_format")+"\n", "OpenCode", opencodeInstallStatus, opencodeNotifyStatus)
 
+	piInstallStatus := padRight(i18n.T("status.not_installed"), 8)
+	if result.PiInstalled {
+		piInstallStatus = padRight(i18n.T("status.installed"), 8)
+	}
+	piNotifyStatus := padRight(diagnosticStatusLabel(result.PiIntegrationStatus), 14)
+	output.Writef(i18n.T("doctor.row_format")+"\n", "Pi", piInstallStatus, piNotifyStatus)
+
 	output.Writef(i18n.T("doctor.agent_sep") + "\n")
 	output.Writef("\n")
 
@@ -568,6 +613,16 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.OpenCodeNtfyEnabled),
 		boolIcon(result.OpenCodeSlackEnabled),
 	)
+	output.Writef(channelRow, "Pi",
+		boolIcon(result.PiFeishuEnabled),
+		boolIcon(result.PiSystemEnabled),
+		boolIcon(result.PiWechatEnabled),
+		boolIcon(result.PiWechatWorkEnabled),
+		boolIcon(result.PiDingTalkEnabled),
+		boolIcon(result.PiBarkEnabled),
+		boolIcon(result.PiNtfyEnabled),
+		boolIcon(result.PiSlackEnabled),
+	)
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef("\n")
 
@@ -633,7 +688,7 @@ func focusPrecisionI18nKey(status string) string {
 }
 
 // firstEnabledAgentSystemPrecision returns the effective system focus precision
-// of the first agent (Claude, Codex, ZCode, Grok, Kimi, Droid, OpenCode) with Channels.System.Enabled,
+// of the first agent (Claude, Codex, ZCode, Grok, Kimi, Droid, OpenCode, Pi) with Channels.System.Enabled,
 // or "app" when no agent has system notifications enabled.
 func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 	precision := config.FocusPrecisionApp
@@ -652,6 +707,8 @@ func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 		precision = result.DroidSystemFocusPrecision
 	case result.OpenCodeSystemEnabled:
 		precision = result.OpenCodeSystemFocusPrecision
+	case result.PiSystemEnabled:
+		precision = result.PiSystemFocusPrecision
 	}
 	if precision != config.FocusPrecisionWindow {
 		return config.FocusPrecisionApp

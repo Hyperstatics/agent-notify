@@ -198,6 +198,10 @@ var catalog = map[string]map[Lang]string{
 	"setup.opencode_hooks_err":   {ZhCN: "获取 opencode 插件路径失败", EnUS: "failed to get OpenCode plugin path"},
 	"setup.opencode_install_err": {ZhCN: "安装 opencode 插件失败", EnUS: "failed to install OpenCode plugin"},
 	"setup.opencode_hooks_done":  {ZhCN: "opencode 插件安装: %s\n", EnUS: "OpenCode plugin installed: %s\n"},
+	"setup.pi_tip":               {ZhCN: "提示: 在 Pi 中运行 /reload 加载扩展；项目扩展需先信任该项目\n", EnUS: "Tip: Run /reload in Pi to load the extension; project extensions require project trust\n"},
+	"setup.pi_hooks_err":         {ZhCN: "获取 Pi 扩展路径失败", EnUS: "failed to get Pi extension path"},
+	"setup.pi_install_err":       {ZhCN: "安装 Pi 扩展失败", EnUS: "failed to install Pi extension"},
+	"setup.pi_hooks_done":        {ZhCN: "Pi 扩展安装: %s\n", EnUS: "Pi extension installed: %s\n"},
 
 	// ── Doctor: focus precision ───────────────────────────────
 	"doctor.item_focus_precision":           {ZhCN: "聚焦精度", EnUS: "Focus Precision"},

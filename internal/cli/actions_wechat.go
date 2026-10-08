@@ -74,5 +74,8 @@ func wechatURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.OpenCode.Channels.Wechat.WebhookURL != "" {
 		return cfg.Notify.OpenCode.Channels.Wechat.WebhookURL
 	}
+	if cfg.Notify.Pi.Channels.Wechat.WebhookURL != "" {
+		return cfg.Notify.Pi.Channels.Wechat.WebhookURL
+	}
 	return cfg.Notify.Droid.Channels.Wechat.WebhookURL
 }

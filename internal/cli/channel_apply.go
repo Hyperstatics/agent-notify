@@ -20,4 +20,5 @@ func applyChannelToAgents(cfg *config.Config, apply func(agentEnabled bool, noti
 	apply(cfg.Agent.Kimi.Enabled, &cfg.Notify.Kimi)
 	apply(cfg.Agent.Droid.Enabled, &cfg.Notify.Droid)
 	apply(cfg.Agent.OpenCode.Enabled, &cfg.Notify.OpenCode)
+	apply(cfg.Agent.Pi.Enabled, &cfg.Notify.Pi)
 }

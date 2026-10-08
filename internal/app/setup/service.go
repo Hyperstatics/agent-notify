@@ -43,6 +43,7 @@ type Service struct {
 	kimiIntegration     agentintegrations.Integration
 	droidIntegration    agentintegrations.Integration
 	opencodeIntegration agentintegrations.Integration
+	piIntegration       agentintegrations.Integration
 	feishuPreparer      FeishuPreparer
 	configLoader        ConfigLoader
 }
@@ -71,6 +72,7 @@ func NewService(opts ...Option) *Service {
 		kimiIntegration:     agentintegrations.NewKimiIntegration(),
 		droidIntegration:    agentintegrations.NewDroidIntegration(),
 		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
+		piIntegration:       agentintegrations.NewPiIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -116,6 +118,11 @@ func WithDroidIntegration(i agentintegrations.Integration) Option {
 // WithOpenCodeIntegration sets the OpenCode integration.
 func WithOpenCodeIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.opencodeIntegration = i }
+}
+
+// WithPiIntegration sets the Pi integration.
+func WithPiIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.piIntegration = i }
 }
 
 // WithFeishuPreparer sets the Feishu preparer.
@@ -200,6 +207,16 @@ func droidEventOptionsFn() []PromptOption {
 // 映射为 session_start / permission_required / input_required / run_completed / run_failed。
 // session_start 仅用于点击聚焦的窗口捕获，不作为通知事件，故不列为可选项。
 func opencodeEventOptionsFn() []PromptOption {
+	return []PromptOption{
+		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.input_required"), Value: "input_required"},
+		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
+		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
+	}
+}
+
+// piEventOptionsFn returns event options for Pi.
+func piEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.input_required"), Value: "input_required"},
@@ -403,6 +420,23 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.OpenCode.Channels.Slack.WebhookURL = ""
 		cfg.Notify.OpenCode.Events = nil
 		cfg.Agent.OpenCode.Enabled = false
+	case "pi":
+		cfg.Notify.Pi.Channels.Feishu.Enabled = false
+		cfg.Notify.Pi.Channels.System.Enabled = false
+		cfg.Notify.Pi.Channels.Wechat.Enabled = false
+		cfg.Notify.Pi.Channels.Wechat.WebhookURL = ""
+		cfg.Notify.Pi.Channels.WechatWork.Enabled = false
+		cfg.Notify.Pi.Channels.WechatWork.WebhookURL = ""
+		cfg.Notify.Pi.Channels.DingTalk.Enabled = false
+		cfg.Notify.Pi.Channels.DingTalk.WebhookURL = ""
+		cfg.Notify.Pi.Channels.Bark.Enabled = false
+		cfg.Notify.Pi.Channels.Bark.WebhookURL = ""
+		cfg.Notify.Pi.Channels.Ntfy.Enabled = false
+		cfg.Notify.Pi.Channels.Ntfy.TopicURL = ""
+		cfg.Notify.Pi.Channels.Slack.Enabled = false
+		cfg.Notify.Pi.Channels.Slack.WebhookURL = ""
+		cfg.Notify.Pi.Events = nil
+		cfg.Agent.Pi.Enabled = false
 	}
 
 	if err := s.saveConfig(path, cfg); err != nil {
@@ -433,6 +467,8 @@ func agentName(agent string) string {
 		return "Droid"
 	case "opencode":
 		return "OpenCode"
+	case "pi":
+		return "Pi"
 	default:
 		return agent
 	}

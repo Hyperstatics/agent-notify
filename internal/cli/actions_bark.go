@@ -74,5 +74,8 @@ func barkURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.OpenCode.Channels.Bark.WebhookURL != "" {
 		return cfg.Notify.OpenCode.Channels.Bark.WebhookURL
 	}
+	if cfg.Notify.Pi.Channels.Bark.WebhookURL != "" {
+		return cfg.Notify.Pi.Channels.Bark.WebhookURL
+	}
 	return cfg.Notify.Droid.Channels.Bark.WebhookURL
 }

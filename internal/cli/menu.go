@@ -24,7 +24,7 @@ const banner = `
 ║           ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║            ║
 ║           ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝            ║
 ║                        Agent Notify                            ║
-║ Claude / Codex / Grok / Kimi / Droid / OpenCode Notify Tool    ║
+║ Claude / Codex / Grok / Kimi / Droid / OpenCode / Pi Notify    ║
 ╚════════════════════════════════════════════════════════════════╝
 `
 
@@ -377,6 +377,22 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.OpenCode.Channels.Slack.Enabled = false
 	defaultCfg.Notify.OpenCode.Channels.Slack.WebhookURL = ""
 	defaultCfg.Notify.OpenCode.Events = nil
+	// Clear Pi channel toggles
+	defaultCfg.Notify.Pi.Channels.Feishu.Enabled = false
+	defaultCfg.Notify.Pi.Channels.System.Enabled = false
+	defaultCfg.Notify.Pi.Channels.Wechat.Enabled = false
+	defaultCfg.Notify.Pi.Channels.Wechat.WebhookURL = ""
+	defaultCfg.Notify.Pi.Channels.WechatWork.Enabled = false
+	defaultCfg.Notify.Pi.Channels.WechatWork.WebhookURL = ""
+	defaultCfg.Notify.Pi.Channels.DingTalk.Enabled = false
+	defaultCfg.Notify.Pi.Channels.DingTalk.WebhookURL = ""
+	defaultCfg.Notify.Pi.Channels.Bark.Enabled = false
+	defaultCfg.Notify.Pi.Channels.Bark.WebhookURL = ""
+	defaultCfg.Notify.Pi.Channels.Ntfy.Enabled = false
+	defaultCfg.Notify.Pi.Channels.Ntfy.TopicURL = ""
+	defaultCfg.Notify.Pi.Channels.Slack.Enabled = false
+	defaultCfg.Notify.Pi.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.Pi.Events = nil
 	if err := config.Save(cfgPath, defaultCfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("clean.save_default_err"), err)
 	}

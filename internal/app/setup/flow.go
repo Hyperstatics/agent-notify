@@ -19,6 +19,7 @@ const (
 	agentKimi       = "kimi"
 	agentDroid      = "droid"
 	agentOpencode   = "opencode"
+	agentPi         = "pi"
 	channelSystem   = "system"
 	channelFeishu   = "feishu"
 	channelWechat   = "wechat"
@@ -78,7 +79,7 @@ type configuredAgent struct {
 func (s *Service) selectAgent(prompter Prompter, cfg config.Config) (string, error) {
 	agentOptions, defaultAgent := s.agentOptions(cfg)
 	if len(agentOptions) == 0 {
-		return "", errors.New("Claude Code, Codex, ZCode, Grok, Kimi, Droid or OpenCode not detected; please install one first")
+		return "", errors.New("Claude Code, Codex, ZCode, Grok, Kimi, Droid, OpenCode or Pi not detected; please install one first")
 	}
 	if defaultAgent == "" {
 		defaultAgent = agentOptions[0].Value
@@ -129,6 +130,12 @@ func (s *Service) agentOptions(cfg config.Config) ([]PromptOption, string) {
 		options = append(options, PromptOption{Label: "OpenCode", Value: agentOpencode})
 		if cfg.Agent.OpenCode.Enabled && defaultAgent == "" {
 			defaultAgent = agentOpencode
+		}
+	}
+	if s.piIntegration != nil && s.piIntegration.DetectInstalled() {
+		options = append(options, PromptOption{Label: "Pi", Value: agentPi})
+		if cfg.Agent.Pi.Enabled && defaultAgent == "" {
+			defaultAgent = agentPi
 		}
 	}
 	return options, defaultAgent
@@ -203,6 +210,8 @@ func eventOptionsForAgent(agent string) []PromptOption {
 		return droidEventOptionsFn()
 	case agentOpencode:
 		return opencodeEventOptionsFn()
+	case agentPi:
+		return piEventOptionsFn()
 	default:
 		return codexEventOptionsFn()
 	}
@@ -222,6 +231,8 @@ func channelsForAgent(cfg config.Config, agent string) config.ChannelsConfig {
 		return cfg.Notify.Droid.Channels
 	case agentOpencode:
 		return cfg.Notify.OpenCode.Channels
+	case agentPi:
+		return cfg.Notify.Pi.Channels
 	default:
 		return cfg.Notify.Codex.Channels
 	}
@@ -241,6 +252,8 @@ func eventsForAgent(cfg config.Config, agent string) []string {
 		return cfg.Notify.Droid.Events
 	case agentOpencode:
 		return cfg.Notify.OpenCode.Events
+	case agentPi:
+		return cfg.Notify.Pi.Events
 	default:
 		return cfg.Notify.Codex.Events
 	}
@@ -262,6 +275,8 @@ func (s *Service) configureAgent(req configureAgentRequest) (configuredAgent, er
 		return s.configureDroid(req)
 	case agentOpencode:
 		return s.configureOpenCode(req)
+	case agentPi:
+		return s.configurePi(req)
 	default:
 		return configuredAgent{}, fmt.Errorf("unsupported agent: %s", req.agent)
 	}
@@ -494,6 +509,37 @@ func (s *Service) configureOpenCode(req configureAgentRequest) (configuredAgent,
 	next.Agent.OpenCode.InstalledPaths = config.RecordInstalledPath(
 		next.Agent.OpenCode.InstalledPaths, settingsPath)
 	next.Agent.OpenCode.Enabled = true
+	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
+}
+
+// configurePi installs the bundled extension in Pi's user or project extension directory.
+func (s *Service) configurePi(req configureAgentRequest) (configuredAgent, error) {
+	next := req.cfg
+	next.Notify.Pi.Channels = applyChannelSelection(next.Notify.Pi.Channels, req.channels)
+	next.Notify.Pi.Events = dedupeStrings(req.events)
+	if err := s.prepareSelectedChannels(req.ctx, req.channels); err != nil {
+		return configuredAgent{}, err
+	}
+	channels, err := promptWebhookURLs(req.prompter, next.Notify.Pi.Channels, req.channels)
+	if err != nil {
+		return configuredAgent{}, err
+	}
+	next.Notify.Pi.Channels = channels
+
+	agentScope := normalizedInstallScope(next.Agent.Pi.InstallScope)
+	settingsPath, err := s.piIntegration.SettingsPath(agentScope)
+	if err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.pi_hooks_err"), err)
+	}
+	resolvedBinary := common.ResolveBinaryPath(req.binaryPath)
+	if err := s.piIntegration.Install(settingsPath, resolvedBinary); err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.pi_install_err"), err)
+	}
+	req.output.Writef(i18n.T("setup.pi_hooks_done"), settingsPath)
+	req.output.Writef(i18n.T("setup.pi_tip"))
+	next.Agent.Pi.InstallScope = agentScope
+	next.Agent.Pi.InstalledPaths = config.RecordInstalledPath(next.Agent.Pi.InstalledPaths, settingsPath)
+	next.Agent.Pi.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
 

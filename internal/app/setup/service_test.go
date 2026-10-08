@@ -132,6 +132,7 @@ func TestService_Name(t *testing.T) {
 
 func TestService_NoAgentsDetected(t *testing.T) {
 	svc := NewService(
+		WithPiIntegration(&mockIntegration{name: "Pi", detectInstalled: false}),
 		WithClaudeIntegration(&mockIntegration{name: "Claude Code", detectInstalled: false}),
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),

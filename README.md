@@ -16,7 +16,7 @@
 
 ## Overview
 
-Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, OpenCode, ZCode, Grok, Kimi, Droid, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
+Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, OpenCode, ZCode, Grok, Kimi, Droid, Pi, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
 
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
@@ -50,12 +50,12 @@ npx agent-notify
 
 ### Supported Events
 
-| Event | Claude Code | Codex | OpenCode | ZCode | Grok | Kimi | Droid |
-|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
-| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ |
-| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ | ✅ |
-| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ |
-| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | ✅ | — |
+| Event | Claude Code | Codex | OpenCode | ZCode | Grok | Kimi | Droid | Pi |
+|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|:---:|
+| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ | ✅ |
+| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ | ✅ | ✅ |
+| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ | ✅ | ✅ |
+| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | ✅ | — | ✅ |
 
 Notes:
 
@@ -66,6 +66,7 @@ Notes:
 - Grok subscribes via `~/.grok/hooks/agent-notify.json`: `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. There is no dedicated `PermissionRequest` event; `permission_prompt` maps to `permission_required`. Real wait types (`input_required` / `waiting_input` / `needs_input`) map to `input_required`. `idle_prompt` is skipped — Grok fires it after any turn end (including auto permission), not when it is blocked waiting for you. `Stop` only maps to `run_completed` when `reason` is `end_turn` (or omitted); session-end Stop (`channel_closed` / `shutdown`) and Ctrl+C (`StopCancelled`) are skipped. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
 - Kimi Code subscribes via `[[hooks]]` in `~/.kimi-code/config.toml` (or `$KIMI_CODE_HOME/config.toml`): `SessionStart`, `PermissionRequest`, `Notification`, `Stop`, `StopFailure`, `PostToolUseFailure`, `PreToolUse` (`AskUserQuestion`), `TaskStarted` (`question`), `SubagentStart`, and `SubagentStop`. `PermissionRequest` maps to `permission_required` (plan approval). `PreToolUse`/`TaskStarted` map choice prompts to `input_required`. Kimi also fires `Stop` when a subagent turn ends; those are dropped until `SubagentStop` using an in-flight subagent count, so only the main agent’s `Stop` maps to `run_completed`. Background `Notification` `task.completed` / `task.failed` are ignored. `StopFailure` / `PostToolUseFailure` map to `run_failed`. Kimi Code currently has no project-level config. Hooks are a Beta feature of Kimi Code.
 - Droid subscribes via `~/.factory/hooks.json`: `SessionStart`, `Notification`, `Stop`, mapped to `session_start` / `permission_required`|`input_required` / `run_completed`. Droid has no failure event, so `run_failed` is not supported. `session_start` is only used for click-to-focus window capture, not as a notification event.
+- Pi uses an auto-discovered JavaScript extension in `~/.pi/agent/extensions/agent-notify.js` (or `$PI_CODING_AGENT_DIR/extensions/agent-notify.js`) or project `.pi/extensions/agent-notify.js`. It subscribes to `session_start` and blocking extension UI prompts, captures `agent_before_settle` outcomes, and sends completion/failure notifications only on `agent_settled`. Confirm prompts map to `permission_required`, other prompts to `input_required`, and completed/error outcomes to `run_completed` / `run_failed`. Pi does not request approval for every tool call; project extensions load only after project trust is granted.
 - **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op.
 
 ### Supported Platforms
@@ -105,6 +106,8 @@ On every subsequent run it checks the local binary version: it downloads if miss
 > **Grok**: Writes `~/.grok/hooks/agent-notify.json`. Global hooks are always trusted; project hooks (`.grok/hooks/`) require `/hooks-trust` or `--trust`. After install, run `/hooks` (or `Ctrl+L`) inside Grok to confirm they loaded.
 >
 > **Kimi**: Appends `[[hooks]]` entries to `~/.kimi-code/config.toml`. After install, run `/hooks` inside Kimi to confirm they loaded. Kimi Code hooks are currently Beta.
+>
+> **Pi**: Installs an extension under Pi's user or project extension directory. Run `/reload` to load it; project extensions require project trust.
 
 
 > You don't need to edit config files by hand — this section is for reference only.
@@ -120,6 +123,7 @@ Agent integration config locations:
 - Grok: `~/.grok/hooks/agent-notify.json` (writes hooks → command `agent-notify handle-grok-hook`; project scope uses `.grok/hooks/agent-notify.json`)
 - Kimi: `~/.kimi-code/config.toml` (writes `[[hooks]]` → command `agent-notify handle-kimi-hook`; user scope only)
 - Droid: `~/.factory/hooks.json` (writes hooks → command `agent-notify handle-droid-hook`; project scope uses `.factory/hooks.json`)
+- Pi: `~/.pi/agent/extensions/agent-notify.js` (or `$PI_CODING_AGENT_DIR/extensions/agent-notify.js`; project scope uses `.pi/extensions/agent-notify.js`; command `agent-notify handle-pi-hook`)
 
 ### WeChat Work Bot Binding Tip
 

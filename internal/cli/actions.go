@@ -21,6 +21,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/i18n"
 	"github.com/hellolib/agent-notify/internal/kimihooks"
 	"github.com/hellolib/agent-notify/internal/opencodehooks"
+	"github.com/hellolib/agent-notify/internal/pihooks"
 	"github.com/hellolib/agent-notify/internal/zcodehooks"
 	"github.com/mattn/go-isatty"
 )
@@ -81,6 +82,7 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 		setup.WithKimiIntegration(agentintegrations.NewKimiIntegration()),
 		setup.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
 		setup.WithOpenCodeIntegration(agentintegrations.NewOpenCodeIntegration()),
+		setup.WithPiIntegration(agentintegrations.NewPiIntegration()),
 		setup.WithFeishuPreparer(&feishuPreparerAdapter{}),
 	)
 
@@ -216,6 +218,23 @@ func runInstallOpenCodeHooks(scope, binaryPath string) error {
 	return opencodehooks.Install(path, pluginPath, common.ResolveBinaryPath(binaryPath))
 }
 
+func runPrintPiHooks(streams Streams, binaryPath string) error {
+	encodedBinary, err := json.Marshal(common.ResolveBinaryPath(binaryPath))
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(streams.Stdout, strings.ReplaceAll(pihooks.PluginJS, "__AGENT_NOTIFY_BINARY__", string(encodedBinary)))
+	return err
+}
+
+func runInstallPiHooks(scope, binaryPath string) error {
+	path, err := settingsPathForAgent("pi", scope)
+	if err != nil {
+		return err
+	}
+	return agentintegrations.NewPiIntegration().Install(path, common.ResolveBinaryPath(binaryPath))
+}
+
 func runTestFeishu(ctx context.Context, streams Streams) error {
 	svc := tester.NewService(
 		tester.WithFeishuPreparer(&feishuPreparerAdapter{}),
@@ -259,6 +278,9 @@ func runTestWechatWork(ctx context.Context, streams Streams) error {
 		webhookURL = cfg.Notify.Kimi.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
+		webhookURL = cfg.Notify.Pi.Channels.WechatWork.WebhookURL
+	}
+	if webhookURL == "" {
 		webhookURL = cfg.Notify.Droid.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
@@ -295,6 +317,9 @@ func runInitWechatWork(streams Streams, prompter Prompter) error {
 		currentURL = cfg.Notify.Kimi.Channels.WechatWork.WebhookURL
 	}
 	if currentURL == "" {
+		currentURL = cfg.Notify.Pi.Channels.WechatWork.WebhookURL
+	}
+	if currentURL == "" {
 		currentURL = cfg.Notify.Droid.Channels.WechatWork.WebhookURL
 	}
 
@@ -325,6 +350,7 @@ func runDoctor(streams Streams) error {
 		doctor.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
 		doctor.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
 		doctor.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
+		doctor.WithPiIntegration(agentintegrations.NewPiIntegration()),
 	)
 	result, err := svc.Run()
 	if err != nil {
@@ -430,6 +456,15 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.OpenCode.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.OpenCode.Channels.Ntfy.Enabled),
 		statusIcon(cfg.Notify.OpenCode.Channels.Slack.Enabled))
+	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Pi",
+		statusIcon(cfg.Notify.Pi.Channels.Feishu.Enabled),
+		statusIcon(cfg.Notify.Pi.Channels.System.Enabled),
+		statusIcon(cfg.Notify.Pi.Channels.Wechat.Enabled),
+		statusIcon(cfg.Notify.Pi.Channels.WechatWork.Enabled),
+		statusIcon(cfg.Notify.Pi.Channels.DingTalk.Enabled),
+		statusIcon(cfg.Notify.Pi.Channels.Bark.Enabled),
+		statusIcon(cfg.Notify.Pi.Channels.Ntfy.Enabled),
+		statusIcon(cfg.Notify.Pi.Channels.Slack.Enabled))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil
@@ -516,6 +551,8 @@ func settingsPathForAgent(agent, scope string) (string, error) {
 		default:
 			return "", fmt.Errorf("unsupported scope: %s", scope)
 		}
+	case "pi":
+		return agentintegrations.NewPiIntegration().SettingsPath(scope)
 	default:
 		return "", fmt.Errorf("unsupported agent: %s", agent)
 	}

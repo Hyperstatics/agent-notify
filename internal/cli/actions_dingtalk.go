@@ -74,5 +74,8 @@ func dingTalkURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.OpenCode.Channels.DingTalk.WebhookURL != "" {
 		return cfg.Notify.OpenCode.Channels.DingTalk.WebhookURL
 	}
+	if cfg.Notify.Pi.Channels.DingTalk.WebhookURL != "" {
+		return cfg.Notify.Pi.Channels.DingTalk.WebhookURL
+	}
 	return cfg.Notify.Droid.Channels.DingTalk.WebhookURL
 }

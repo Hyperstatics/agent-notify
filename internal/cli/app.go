@@ -16,6 +16,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	// （下方 runMenu）根本不经过 cobra，而那正是 npx 升级后最常见的路径。
 	if !isHeadlessInvocation(args) {
 		refreshOpenCodePlugin()
+		refreshPiExtension()
 	}
 
 	streams := Streams{

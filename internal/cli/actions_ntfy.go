@@ -74,5 +74,8 @@ func ntfyURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.OpenCode.Channels.Ntfy.TopicURL != "" {
 		return cfg.Notify.OpenCode.Channels.Ntfy.TopicURL
 	}
+	if cfg.Notify.Pi.Channels.Ntfy.TopicURL != "" {
+		return cfg.Notify.Pi.Channels.Ntfy.TopicURL
+	}
 	return cfg.Notify.Droid.Channels.Ntfy.TopicURL
 }

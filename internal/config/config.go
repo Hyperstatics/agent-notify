@@ -28,6 +28,7 @@ type AgentConfig struct {
 	Kimi       AgentTargetConfig `yaml:"kimi"`        // Kimi Code 配置
 	Droid      AgentTargetConfig `yaml:"droid"`       // Droid 配置
 	OpenCode   AgentTargetConfig `yaml:"opencode"`    // OpenCode 配置
+	Pi         AgentTargetConfig `yaml:"pi"`          // Pi 配置
 }
 
 // AgentTargetConfig holds configuration for a specific agent.
@@ -62,6 +63,7 @@ type NotifyConfig struct {
 	Kimi       AgentNotifyConfig `yaml:"kimi"`        // Kimi Code 通知配置
 	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
 	OpenCode   AgentNotifyConfig `yaml:"opencode"`    // OpenCode 通知配置
+	Pi         AgentNotifyConfig `yaml:"pi"`          // Pi 通知配置
 }
 
 // All 按固定顺序返回全部 agent 的通知配置，供只读遍历使用。
@@ -71,7 +73,7 @@ type NotifyConfig struct {
 // enabledRemoteFreezeChannels 仍只遍历前四个，导致只配 Droid 的用户完全冻结不了。
 // TestNotifyConfigAllCoversEveryAgent 会在字段数与此处不一致时失败。
 func (n NotifyConfig) All() []AgentNotifyConfig {
-	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Kimi, n.Droid, n.OpenCode}
+	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Kimi, n.Droid, n.OpenCode, n.Pi}
 }
 
 // AgentNotifyConfig holds notification configuration for a single agent.
@@ -199,6 +201,8 @@ func Default() Config {
 	// OpenCode 插件订阅 session.created / permission.asked / session.status /
 	// session.idle / session.error。session_start 仅用于聚焦捕获。
 	opencodeEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
+	// Pi extensions support session_start, blocking UI prompts, and final run outcomes.
+	piEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 
 	// BREAKING (vs pre-Grok defaults): Claude Code is no longer enabled by default,
 	// and System notification is no longer pre-enabled for any agent.
@@ -256,6 +260,10 @@ func Default() Config {
 				Enabled:      false,
 				InstallScope: "user",
 			},
+			Pi: AgentTargetConfig{
+				Enabled:      false,
+				InstallScope: "user",
+			},
 		},
 		Notify: NotifyConfig{
 			ClaudeCode: AgentNotifyConfig{
@@ -284,6 +292,10 @@ func Default() Config {
 			},
 			OpenCode: AgentNotifyConfig{
 				Events:   append([]string(nil), opencodeEvents...),
+				Channels: disabledChannels(),
+			},
+			Pi: AgentNotifyConfig{
+				Events:   append([]string(nil), piEvents...),
 				Channels: disabledChannels(),
 			},
 		},
@@ -361,6 +373,7 @@ func Load(path string) (Config, error) {
 	cfg.Notify.Kimi.Events = ensureEvents(cfg.Notify.Kimi, def.Notify.Kimi.Events)
 	cfg.Notify.Droid.Events = ensureEvents(cfg.Notify.Droid, def.Notify.Droid.Events)
 	cfg.Notify.OpenCode.Events = ensureEvents(cfg.Notify.OpenCode, def.Notify.OpenCode.Events)
+	cfg.Notify.Pi.Events = ensureEvents(cfg.Notify.Pi, def.Notify.Pi.Events)
 
 	return cfg, nil
 }
@@ -383,6 +396,7 @@ func migrateV1ToV2(cfg *Config) {
 		&cfg.Notify.Kimi.Channels.System,
 		&cfg.Notify.Droid.Channels.System,
 		&cfg.Notify.OpenCode.Channels.System,
+		&cfg.Notify.Pi.Channels.System,
 	} {
 		system.ClickToFocus = true
 	}
